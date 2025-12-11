@@ -53,24 +53,46 @@ export function processWelcome(sessionId: string): NextResponse {
   };
 }
 
+function getOptionLabel(sel?: { value: string; otherText?: string }): string {
+  if (!sel) return "";
+  return sel.value === "Other" && sel.otherText ? sel.otherText : sel.value;
+}
+
 export function processFundMandate(sessionId: string, mandate: FundMandate): NextResponse {
   const state = getOrCreateSession(sessionId);
   state.fundMandate = mandate;
   state.phase = "countryScreening";
   updateSession(sessionId, state);
 
-  const sectors = mandate.sectorsFocus?.join(", ") || "Technology";
-  const geos = mandate.geosFocus?.join(", ") || "India, Singapore";
-  const dealSize = `$${mandate.dealSizeMin}M - $${mandate.dealSizeMax}M`;
+  // Handle both legacy string fields and new OptionSelection fields
+  const fundTypeLabel = typeof mandate.fundType === 'string' 
+    ? mandate.fundType 
+    : getOptionLabel(mandate.fundType) || "Growth";
+  
+  const sectors = mandate.sectorsFocus?.join(", ") 
+    || mandate.sectorFocus?.map(s => getOptionLabel(s)).join(", ") 
+    || "Technology";
+  
+  const geos = mandate.geosFocus?.join(", ") 
+    || mandate.geographicFocus?.map(g => getOptionLabel(g)).join(", ") 
+    || "India, Singapore";
+  
+  const dealMin = mandate.dealSizeMin ?? mandate.dealSizeRange?.min ?? 10;
+  const dealMax = mandate.dealSizeMax ?? mandate.dealSizeRange?.max ?? 50;
+  const dealSize = `$${dealMin}M - $${dealMax}M`;
+  
+  const riskLabel = typeof mandate.riskAppetite === 'string' 
+    ? mandate.riskAppetite 
+    : getOptionLabel(mandate.riskAppetite) || "Medium";
 
   return {
     state,
     assistantMessages: [
       createAssistantMessage(
-        `Got it. You're a ${mandate.fundType?.replace("-", " ")} fund focused on ${sectors} in ${geos}, with ticket size ${dealSize} and ${mandate.riskAppetite} risk appetite.\n\nI'll now screen countries based on macro and regulatory factors. Based on your mandate, I'm focusing on India and Singapore as the primary target markets.`
+        `Got it. You're a ${fundTypeLabel.replace("-", " ")} fund focused on ${sectors} in ${geos}, with ticket size ${dealSize} and ${riskLabel} risk appetite.\n\nI'll now screen countries based on macro and regulatory factors. Based on your mandate, I'm focusing on India and Singapore as the primary target markets.`
       ),
       createAssistantMessage(
-        "I've completed the country screening. Both India and Singapore meet your criteria:\n\n• India: Strong market size ($3.2T GDP), mature tech ecosystem, 25%+ growth in target sectors\n• Singapore: Excellent regulatory environment, regional hub status, strong capital markets access\n\nReply 'continue' to proceed to the scoring framework configuration."
+        "I've completed the country screening. Both India and Singapore meet your criteria:\n\n- India: Strong market size ($3.2T GDP), mature tech ecosystem, 25%+ growth in target sectors\n- Singapore: Excellent regulatory environment, regional hub status, strong capital markets access\n\nReply 'continue' to proceed to the scoring framework configuration."
       ),
     ],
     thinkingSteps: [
