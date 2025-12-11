@@ -1,10 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Brain, Loader2 } from "lucide-react";
 import type { ThinkingStep, Phase } from "@shared/schema";
 import { phaseLabels } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+
+interface DisplayedStep {
+  id: string;
+  phase: Phase;
+  fullText: string;
+  shownText: string;
+}
 
 interface ThinkingPanelProps {
   steps: ThinkingStep[];
@@ -14,6 +21,50 @@ interface ThinkingPanelProps {
 
 export function ThinkingPanel({ steps, isProcessing = false, className }: ThinkingPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [visibleSteps, setVisibleSteps] = useState<DisplayedStep[]>([]);
+  const processedIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const newSteps: DisplayedStep[] = [];
+    
+    steps.forEach((step) => {
+      if (!processedIdsRef.current.has(step.id)) {
+        processedIdsRef.current.add(step.id);
+        newSteps.push({
+          id: step.id,
+          phase: step.phase,
+          fullText: step.text,
+          shownText: "",
+        });
+      }
+    });
+
+    if (newSteps.length > 0) {
+      setVisibleSteps((prev) => [...prev, ...newSteps]);
+    }
+  }, [steps]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisibleSteps((prev) => {
+        let anyUpdated = false;
+        const updated = prev.map((step) => {
+          if (step.shownText.length < step.fullText.length) {
+            anyUpdated = true;
+            const nextLen = step.shownText.length + 1;
+            return {
+              ...step,
+              shownText: step.fullText.slice(0, nextLen),
+            };
+          }
+          return step;
+        });
+        return anyUpdated ? updated : prev;
+      });
+    }, 15);
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -22,7 +73,7 @@ export function ThinkingPanel({ steps, isProcessing = false, className }: Thinki
         behavior: "smooth",
       });
     }
-  }, [steps]);
+  }, [visibleSteps]);
 
   return (
     <div className={cn("flex flex-col h-full bg-card border-l border-border", className)} data-testid="thinking-panel">
@@ -37,16 +88,16 @@ export function ThinkingPanel({ steps, isProcessing = false, className }: Thinki
       </div>
       <ScrollArea ref={scrollRef} className="flex-1 p-4">
         <div className="space-y-3">
-          {steps.length === 0 ? (
+          {visibleSteps.length === 0 ? (
             <div className="text-sm text-muted-foreground italic text-center py-8">
               Agent reasoning will appear here as the conversation progresses...
             </div>
           ) : (
-            steps.map((step, index) => (
+            visibleSteps.map((step, index) => (
               <ThinkingStepItem
                 key={step.id}
                 step={step}
-                isLatest={index === steps.length - 1}
+                isLatest={index === visibleSteps.length - 1}
               />
             ))
           )}
@@ -65,11 +116,13 @@ export function ThinkingPanel({ steps, isProcessing = false, className }: Thinki
 }
 
 interface ThinkingStepItemProps {
-  step: ThinkingStep;
+  step: DisplayedStep;
   isLatest: boolean;
 }
 
 function ThinkingStepItem({ step, isLatest }: ThinkingStepItemProps) {
+  const isTyping = step.shownText.length < step.fullText.length;
+  
   return (
     <div
       className={cn(
@@ -86,7 +139,8 @@ function ThinkingStepItem({ step, isLatest }: ThinkingStepItemProps) {
         </Badge>
       </div>
       <p className="font-mono text-sm leading-relaxed text-foreground/80">
-        {step.text}
+        {step.shownText}
+        {isTyping && <span className="animate-pulse">|</span>}
       </p>
     </div>
   );

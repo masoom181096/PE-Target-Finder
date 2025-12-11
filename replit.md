@@ -5,11 +5,12 @@ A Private Equity Target Finder demo featuring a multi-phase conversational workf
 ## Overview
 
 This application guides PE analysts through a structured process to identify and evaluate acquisition targets, featuring:
-- Multi-phase conversational workflow
-- Live "Agent Thinking" panel showing step-by-step reasoning
-- 10 customizable scoring weights (totaling 100%)
-- Investment threshold configuration
-- Automated company scoring and ranking
+- Multi-phase conversational workflow with 9 phases including restrictions assessment
+- Live "Agent Thinking" panel with typewriter-style streaming animation
+- Macro/Micro/Fund restrictions step with mandate compatibility analysis
+- 10 customizable scoring weights (totaling 100%) with 50+ sub-parameters
+- Investment threshold configuration with preference levels (auto/hardFilter/high/medium/low/ignore)
+- Forced company ranking: Mantla (rank 1), Instaworks (rank 2), Disprztech (rank 3)
 - Detailed investment memo generation
 - Session save/load with full state persistence
 - PDF export of investment memos
@@ -53,13 +54,14 @@ This application guides PE analysts through a structured process to identify and
 ## Phase Flow
 
 1. **welcome** - Initial greeting
-2. **fundMandate** - Collect fund investment criteria
-3. **countryScreening** - Filter by target countries (India/Singapore)
-4. **weights** - Configure 10 scoring parameters (must sum to 100)
-5. **thresholds** - Set investment requirements
-6. **shortlist** - Display ranked candidates
-7. **comparison** - Detailed review with chart comparison and "Generate Report" option
-8. **reportChosen** - Display comprehensive investment memo with visualizations
+2. **fundMandate** - Collect fund investment criteria (11 categories with checkbox/radio + "Other" patterns)
+3. **restrictions** - Macro/Micro/Fund restrictions input (e.g., "Avoid US sanctioned countries")
+4. **countryScreening** - Filter by target countries (India/Singapore), includes macro/micro analysis
+5. **weights** - Configure 10 scoring parameters (must sum to 100)
+6. **thresholds** - Set investment requirements with 50+ sub-parameters
+7. **shortlist** - Display ranked candidates (forced ranking: Mantla > Instaworks > Disprztech)
+8. **comparison** - Detailed review with chart comparison and "Generate Report" option
+9. **reportChosen** - Display comprehensive investment memo with visualizations
 
 ## Features
 
@@ -112,3 +114,7 @@ The application runs on port 5000 with hot reloading enabled.
 - Companies: Mantla Platform (CPaaS, India), Instaworks (CPaaS, India), Disprztech (LXP, Singapore)
 - Design follows Material Design 3 adapted for financial services
 - All scoring dimensions: Quality of Earnings, Financial Performance, Industry Attractiveness, Competitive Positioning, Management/Governance, Operational Efficiency, Customer/Market Dynamics, Product Strength, Exit Feasibility, Scalability Potential
+- Forced ranking ensures demo consistency: Mantla > Instaworks > Disprztech with scores 90/87/84
+- ThinkingPanel uses typewriter animation at 15ms per character interval
+- Restrictions phase captures macro/micro constraints before country screening
+- 50+ sub-parameters defined in SUB_PARAMETERS constant for detailed threshold configuration

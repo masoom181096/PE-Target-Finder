@@ -91,11 +91,26 @@ export function scoreAndRankCompanies(
       score: computeCompositeScore(company, weights),
       rank: 0,
       highlights: generateHighlights(company),
-    }))
-    .sort((a, b) => b.score - a.score);
+    }));
 
+  // Force ranking order: Mantla 1, Instaworks 2, Disprztech 3 (per demo requirements)
+  const rankOverride: Record<string, number> = {
+    mantla: 1,
+    instaworks: 2,
+    disprztech: 3,
+  };
+
+  scoredCompanies.sort((a, b) => {
+    const ra = rankOverride[a.id] ?? 99;
+    const rb = rankOverride[b.id] ?? 99;
+    return ra - rb;
+  });
+
+  // Assign ranks and adjust scores to reflect visual ranking
   scoredCompanies.forEach((company, index) => {
     company.rank = index + 1;
+    // Adjust scores to visually reflect the forced ranking (90, 87, 84)
+    company.score = 90 - index * 3;
   });
 
   return scoredCompanies;

@@ -61,7 +61,7 @@ function getOptionLabel(sel?: { value: string; otherText?: string }): string {
 export function processFundMandate(sessionId: string, mandate: FundMandate): NextResponse {
   const state = getOrCreateSession(sessionId);
   state.fundMandate = mandate;
-  state.phase = "countryScreening";
+  state.phase = "restrictions";
   updateSession(sessionId, state);
 
   // Handle both legacy string fields and new OptionSelection fields
@@ -89,19 +89,73 @@ export function processFundMandate(sessionId: string, mandate: FundMandate): Nex
     state,
     assistantMessages: [
       createAssistantMessage(
-        `Got it. You're a ${fundTypeLabel.replace("-", " ")} fund focused on ${sectors} in ${geos}, with ticket size ${dealSize} and ${riskLabel} risk appetite.\n\nI'll now screen countries based on macro and regulatory factors. Based on your mandate, I'm focusing on India and Singapore as the primary target markets.`
-      ),
-      createAssistantMessage(
-        "I've completed the country screening. Both India and Singapore meet your criteria:\n\n- India: Strong market size ($3.2T GDP), mature tech ecosystem, 25%+ growth in target sectors\n- Singapore: Excellent regulatory environment, regional hub status, strong capital markets access\n\nReply 'continue' to proceed to the scoring framework configuration."
+        `Got it. You're a ${fundTypeLabel.replace("-", " ")} fund focused on ${sectors} in ${geos}, with ticket size ${dealSize} and ${riskLabel} risk appetite.\n\nBefore moving ahead, do you want to add any Macro / Micro / Fund restrictions, or I can assess macro conditions, micro and fund restrictions along with the provided fund mandate?`
       ),
     ],
     thinkingSteps: [
       createThinkingStep("fundMandate", "Capturing core fund mandate parameters..."),
       createThinkingStep("fundMandate", `Mapping deal size ${dealSize} to fund size to estimate feasible targets...`),
+      createThinkingStep("restrictions", "Preparing to assess macro/micro conditions and fund restrictions..."),
+    ],
+  };
+}
+
+export function processRestrictions(sessionId: string, userMessage?: string): NextResponse {
+  const state = getOrCreateSession(sessionId);
+  
+  // Parse user input for restrictions - skip storing "no", "continue", or very short responses
+  const lowerMsg = userMessage?.toLowerCase().trim() || "";
+  const skipKeywords = ["no", "continue", "proceed", "ok", "okay", "yes", "next", "skip"];
+  const shouldSkip = skipKeywords.includes(lowerMsg) || lowerMsg.length < 3;
+  
+  if (!shouldSkip && userMessage) {
+    if (lowerMsg.includes("sanctioned")) {
+      state.restrictions = {
+        avoidSanctionedCountries: true,
+        notes: userMessage,
+      };
+    } else {
+      state.restrictions = {
+        notes: userMessage,
+      };
+    }
+  }
+  
+  state.phase = "countryScreening";
+  updateSession(sessionId, state);
+
+  return {
+    state,
+    assistantMessages: [
+      createAssistantMessage(
+        `**Macro Analysis**
+- India: Strong technology growth, robust GDP, favourable regulation
+- Singapore: Best for high-quality, governance-heavy deals, fastest-growing technology base
+- Vietnam: Fastest-growing technology base.
+
+These markets demonstrate strong tech demand.
+
+**Micro Analysis**
+- India & Singapore show better growth economics than Vietnam.
+
+**Mandate Compatibility Check**
+- All three markets have companies with ticket size above USD 50M.
+- ESG environment: strongest in India & Singapore.
+- Government revenue dependency risk highest in Vietnam (but controllable).
+
+Overall, macro, micro and mandate alignment is strongest in India and Singapore.
+
+Reply 'continue' to proceed to the scoring framework configuration.`
+      ),
+    ],
+    thinkingSteps: [
+      createThinkingStep("restrictions", "Assessing macro conditions across India, Singapore, Vietnam based on demo Refinitiv / CIQ data..."),
+      createThinkingStep("restrictions", "Comparing unit economics and growth profiles to your mandate..."),
+      createThinkingStep("restrictions", "Identifying India and Singapore as strongest fits given your ticket size and ESG preferences..."),
       createThinkingStep("countryScreening", "Querying macro indicators from Refinitiv and Capital IQ..."),
       createThinkingStep("countryScreening", "Evaluating India: market size, tech ecosystem depth, regulatory risk, FX volatility..."),
       createThinkingStep("countryScreening", "Evaluating Singapore: legal system strength, capital markets depth, ease of doing business..."),
-      createThinkingStep("countryScreening", "Both markets pass initial screening criteria. Proceeding to weights configuration..."),
+      createThinkingStep("countryScreening", "Both markets pass initial screening criteria. Ready for weights configuration..."),
     ],
   };
 }
@@ -260,6 +314,10 @@ export function processMessage(
       case "chooseCompany":
         return processCompanyChoice(sessionId, (formData.data as { companyId: string }).companyId);
     }
+  }
+
+  if (state.phase === "restrictions") {
+    return processRestrictions(sessionId, userMessage);
   }
 
   if (state.phase === "countryScreening" && userMessage?.toLowerCase().includes("continue")) {
