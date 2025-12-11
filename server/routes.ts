@@ -4,6 +4,7 @@ import { processMessage } from "./logic/stateMachine";
 import { generateReport } from "./logic/reports";
 import { nextRequestSchema, insertSavedSessionSchema } from "@shared/schema";
 import { storage } from "./storage";
+import { companies, getCompanyById } from "./data/companies";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -90,6 +91,37 @@ export async function registerRoutes(
       return res.json({ success: true });
     } catch (error) {
       console.error("Delete session error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/companies/scores", (req: Request, res: Response) => {
+    try {
+      const ids = req.query.ids as string | undefined;
+      let companyList = companies;
+      
+      if (ids) {
+        const idArray = ids.split(",");
+        companyList = companies.filter((c) => idArray.includes(c.id));
+      }
+      
+      const scoreDetails = companyList.map((company) => ({
+        id: company.id,
+        qualityOfEarningsScore: company.qualityOfEarningsScore,
+        financialPerformanceScore: company.financialPerformanceScore,
+        industryAttractivenessScore: company.industryAttractivenessScore,
+        competitivePositioningScore: company.competitivePositioningScore,
+        managementGovernanceScore: company.managementGovernanceScore,
+        operationalEfficiencyScore: company.operationalEfficiencyScore,
+        customerMarketDynamicsScore: company.customerMarketDynamicsScore,
+        productStrengthScore: company.productStrengthScore,
+        exitFeasibilityScore: company.exitFeasibilityScore,
+        scalabilityPotentialScore: company.scalabilityPotentialScore,
+      }));
+      
+      return res.json(scoreDetails);
+    } catch (error) {
+      console.error("Company scores API error:", error);
       return res.status(500).json({ error: "Internal server error" });
     }
   });

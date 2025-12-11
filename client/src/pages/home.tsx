@@ -10,12 +10,13 @@ import { ThresholdsForm } from "@/components/thresholds-form";
 import { CountryScreeningCard } from "@/components/country-screening-card";
 import { ShortlistCard } from "@/components/shortlist-card";
 import { RecommendationsTable } from "@/components/recommendations-table";
+import { CompanyComparison } from "@/components/company-comparison";
 import { ReportView } from "@/components/report-view";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionManager } from "@/components/session-manager";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Target, MessageSquare, Brain, RotateCcw } from "lucide-react";
+import { Target, MessageSquare, Brain, RotateCcw, BarChart3 } from "lucide-react";
 import type {
   ChatMessage,
   ThinkingStep,
@@ -47,6 +48,21 @@ export default function Home() {
   const [report, setReport] = useState<CompanyReport | null>(null);
   const [mobileTab, setMobileTab] = useState<"chat" | "thinking">("chat");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>();
+  const [companyScores, setCompanyScores] = useState<Array<{
+    id: string;
+    qualityOfEarningsScore: number;
+    financialPerformanceScore: number;
+    industryAttractivenessScore: number;
+    competitivePositioningScore: number;
+    managementGovernanceScore: number;
+    operationalEfficiencyScore: number;
+    customerMarketDynamicsScore: number;
+    productStrengthScore: number;
+    exitFeasibilityScore: number;
+    scalabilityPotentialScore: number;
+  }>>([]);
+  const [comparisonView, setComparisonView] = useState<"table" | "chart">("table");
+  const [isLoadingScores, setIsLoadingScores] = useState(false);
 
   const chatMutation = useMutation({
     mutationFn: async (request: NextRequest) => {
@@ -95,6 +111,23 @@ export default function Home() {
       initializeChat();
     }
   }, []);
+
+  useEffect(() => {
+    if ((state.phase === "shortlist" || state.phase === "comparison") && state.shortlist.length > 0) {
+      const ids = state.shortlist.map((c) => c.id).join(",");
+      setIsLoadingScores(true);
+      fetch(`/api/companies/scores?ids=${ids}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setCompanyScores(data);
+          setIsLoadingScores(false);
+        })
+        .catch((err) => {
+          console.error(err);
+          setIsLoadingScores(false);
+        });
+    }
+  }, [state.phase, state.shortlist]);
 
   const handleSendMessage = (text: string) => {
     setMessages((prev) => [...prev, { role: "user", text }]);
@@ -245,13 +278,45 @@ export default function Home() {
         );
       case "comparison":
         return (
-          <div className="py-4">
-            <RecommendationsTable
-              companies={state.shortlist}
-              onGenerateReport={handleGenerateReport}
-              isLoading={isProcessing}
-              selectedCompanyId={selectedCompanyId}
-            />
+          <div className="py-4 space-y-4">
+            <div className="flex justify-center">
+              <Tabs value={comparisonView} onValueChange={(v) => setComparisonView(v as "table" | "chart")} className="w-full max-w-md">
+                <TabsList className="grid grid-cols-2 w-full">
+                  <TabsTrigger value="table" data-testid="tab-table-view">
+                    Table View
+                  </TabsTrigger>
+                  <TabsTrigger value="chart" data-testid="tab-chart-view">
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    Compare
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+            {comparisonView === "table" ? (
+              <RecommendationsTable
+                companies={state.shortlist}
+                onGenerateReport={handleGenerateReport}
+                isLoading={isProcessing}
+                selectedCompanyId={selectedCompanyId}
+              />
+            ) : (
+              <div className="space-y-6">
+                <CompanyComparison
+                  companies={state.shortlist}
+                  companyDetails={companyScores}
+                  isLoading={isLoadingScores}
+                />
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setComparisonView("table")}
+                    data-testid="button-back-to-table"
+                  >
+                    Back to Table to Select Company
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         );
       default:
