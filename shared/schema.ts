@@ -28,6 +28,35 @@ export const insertSavedSessionSchema = createInsertSchema(savedSessions).omit({
 export type InsertSavedSession = z.infer<typeof insertSavedSessionSchema>;
 export type SavedSession = typeof savedSessions.$inferSelect;
 
+// OptionSelection types for form fields with "Other" support
+export interface OptionSelection {
+  value: string;
+  otherText?: string;
+}
+
+export function getSelectionLabel(sel: OptionSelection): string {
+  return sel.value === "Other" && sel.otherText ? sel.otherText : sel.value;
+}
+
+export interface DealSizeRange {
+  min?: number;
+  max?: number;
+  currency?: string;
+}
+
+export interface FundSizeConfig {
+  amount?: number;
+  currency?: string;
+}
+
+export interface TicketSize {
+  minEnterpriseValue?: number;
+  maxEnterpriseValue?: number;
+  equityChequeMin?: number;
+  equityChequeMax?: number;
+  followOnReservePct?: number;
+}
+
 // Phase types for the state machine
 export type Phase =
   | "welcome"
@@ -54,10 +83,32 @@ export const reportTemplateDescriptions: Record<ReportTemplate, string> = {
   venture: "Focus on market opportunity, competitive differentiation, and exit potential",
 };
 
-// Fund mandate configuration
+// Fund mandate configuration with OptionSelection support
 export interface FundMandate {
-  fundType?: string;
-  fundSize?: string;
+  // Categorical fields (use checkboxes / radios + Other)
+  fundType?: OptionSelection;
+  sectorFocus: OptionSelection[];
+  investmentStage?: OptionSelection;
+  geographicFocus: OptionSelection[];
+  excludedSectors: OptionSelection[];
+  valueCreationApproach: OptionSelection[];
+  exitPreferences: OptionSelection[];
+  financialCriteria: OptionSelection[];
+  riskAppetite?: OptionSelection;
+  transactionTypes: OptionSelection[];
+  ownershipTarget?: OptionSelection;
+
+  // Numeric / text fields
+  equityStakePreference?: string;
+  dealSizeRange?: DealSizeRange;
+  fundSize?: FundSizeConfig;
+  targetIRR?: number;
+  ticketSize?: TicketSize;
+  leveragePolicy?: string;
+  timeHorizonAndValueCreationPlan?: string;
+  holdingPeriodYears?: number;
+
+  // Legacy fields for backwards compatibility
   sectorsFocus?: string[];
   sectorsExcluded?: string[];
   geosFocus?: string[];
@@ -65,8 +116,6 @@ export interface FundMandate {
   dealSizeMin?: number;
   dealSizeMax?: number;
   stage?: string;
-  holdingPeriodYears?: number;
-  riskAppetite?: "Low" | "Medium" | "High";
 }
 
 // Scoring weights (must sum to 100)
@@ -165,10 +214,21 @@ export interface ConversationState {
   reportTemplate: ReportTemplate;
 }
 
+// Default fund mandate with empty arrays
+export const defaultFundMandate: FundMandate = {
+  sectorFocus: [],
+  geographicFocus: [],
+  excludedSectors: [],
+  valueCreationApproach: [],
+  exitPreferences: [],
+  financialCriteria: [],
+  transactionTypes: [],
+};
+
 // Initial conversation state
 export const initialConversationState: ConversationState = {
   phase: "welcome",
-  fundMandate: {},
+  fundMandate: defaultFundMandate,
   scoringWeights: defaultScoringWeights,
   thresholds: defaultThresholds,
   shortlist: [],
@@ -236,9 +296,49 @@ export interface CompanyReport {
 }
 
 // Zod schemas for validation
+export const optionSelectionSchema = z.object({
+  value: z.string(),
+  otherText: z.string().optional(),
+});
+
 export const fundMandateSchema = z.object({
-  fundType: z.string().optional(),
-  fundSize: z.string().optional(),
+  // Categorical fields with OptionSelection
+  fundType: optionSelectionSchema.optional(),
+  sectorFocus: z.array(optionSelectionSchema).default([]),
+  investmentStage: optionSelectionSchema.optional(),
+  geographicFocus: z.array(optionSelectionSchema).default([]),
+  excludedSectors: z.array(optionSelectionSchema).default([]),
+  valueCreationApproach: z.array(optionSelectionSchema).default([]),
+  exitPreferences: z.array(optionSelectionSchema).default([]),
+  financialCriteria: z.array(optionSelectionSchema).default([]),
+  riskAppetite: optionSelectionSchema.optional(),
+  transactionTypes: z.array(optionSelectionSchema).default([]),
+  ownershipTarget: optionSelectionSchema.optional(),
+
+  // Numeric / text fields
+  equityStakePreference: z.string().optional(),
+  dealSizeRange: z.object({
+    min: z.number().optional(),
+    max: z.number().optional(),
+    currency: z.string().optional(),
+  }).optional(),
+  fundSize: z.object({
+    amount: z.number().optional(),
+    currency: z.string().optional(),
+  }).optional(),
+  targetIRR: z.number().optional(),
+  ticketSize: z.object({
+    minEnterpriseValue: z.number().optional(),
+    maxEnterpriseValue: z.number().optional(),
+    equityChequeMin: z.number().optional(),
+    equityChequeMax: z.number().optional(),
+    followOnReservePct: z.number().optional(),
+  }).optional(),
+  leveragePolicy: z.string().optional(),
+  timeHorizonAndValueCreationPlan: z.string().optional(),
+  holdingPeriodYears: z.number().optional(),
+
+  // Legacy fields for backwards compatibility
   sectorsFocus: z.array(z.string()).optional(),
   sectorsExcluded: z.array(z.string()).optional(),
   geosFocus: z.array(z.string()).optional(),
@@ -246,8 +346,6 @@ export const fundMandateSchema = z.object({
   dealSizeMin: z.number().optional(),
   dealSizeMax: z.number().optional(),
   stage: z.string().optional(),
-  holdingPeriodYears: z.number().optional(),
-  riskAppetite: z.enum(["Low", "Medium", "High"]).optional(),
 });
 
 export const scoringWeightsSchema = z.object({

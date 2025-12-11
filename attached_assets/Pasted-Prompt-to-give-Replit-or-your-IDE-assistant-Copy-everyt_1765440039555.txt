@@ -1,0 +1,357 @@
+Prompt to give Replit (or your IDE assistant)
+💾 Copy everything in this grey block and paste it into Replit’s AI / Cursor / etc.:
+You are an expert React + TypeScript + UX engineer.
+Build a reusable **Fund Mandate Form** component that captures a Private Equity fund’s mandate using a combination of:
+- **Checkboxes** for multi-select fields.
+- **Radio buttons** for true single-select fields.
+- **Text inputs** for numeric / free-text fields.
+- **“Other”** option for every categorical field, with a text input for manual specification.
+### Tech + Structure
+- Frontend: **React + TypeScript**.
+- Styling: plain CSS or Tailwind (your choice, but keep it clean and minimal).
+- Create a single component: `FundMandateForm.tsx`, plus small subcomponents if needed:
+  - `MultiSelectWithOther.tsx`
+  - `SingleSelectWithOther.tsx`
+- All state is kept in React; no backend calls are needed for this task.
+---
+## 1. Data Model
+Define the types in `types.ts` (or inside `FundMandateForm.tsx` if you prefer):
+```ts
+export interface OptionSelection {
+  value: string;        // e.g. "Growth & buyout fund" or "Other"
+  otherText?: string;   // if value === "Other", store the manual input here
+}
+export interface DealSizeRange {
+  min?: number;
+  max?: number;
+  currency?: string;
+}
+export interface FundSize {
+  amount?: number;
+  currency?: string;
+}
+export interface TicketSize {
+  minEnterpriseValue?: number;
+  maxEnterpriseValue?: number;
+  equityChequeMin?: number;
+  equityChequeMax?: number;
+  followOnReservePct?: number;
+}
+export interface FundMandate {
+  // Categorical fields (use checkboxes / radios + Other)
+  fundType?: OptionSelection;
+  sectorFocus: OptionSelection[];        // multi-select
+  investmentStage?: OptionSelection;
+  geographicFocus: OptionSelection[];    // multi-select
+  excludedSectors: OptionSelection[];
+  valueCreationApproach: OptionSelection[];
+  exitPreferences: OptionSelection[];
+  financialCriteria: OptionSelection[];
+  riskAppetite?: OptionSelection;
+  transactionTypes: OptionSelection[];
+  ownershipTarget?: OptionSelection;
+  // Numeric / text fields
+  equityStakePreference?: string;
+  dealSizeRange?: DealSizeRange;
+  fundSize?: FundSize;
+  targetIRR?: number;
+  ticketSize?: TicketSize;
+  leveragePolicy?: string;
+  timeHorizonAndValueCreationPlan?: string;
+}
+Also add a small helper:
+export function getSelectionLabel(sel: OptionSelection): string {
+  return sel.value === "Other" && sel.otherText ? sel.otherText : sel.value;
+}
+2. Option Lists (Field Items)
+In FundMandateForm.tsx, define constant arrays for each field.
+2.1 Fund Type (single-select + Other)
+const FUND_TYPE_OPTIONS = [
+  "Distressed fund",
+  "Subordinated Debt fund",
+  "Early-stage fund",
+  "Growth & buyout fund",
+  "Leveraged Buyout (LBO) fund",
+  "Other",
+];
+2.2 Sector Focus (multi-select + Other, via checkboxes)
+const SECTOR_FOCUS_OPTIONS = [
+  "Agriculture & agribusiness",
+  "Mining & metals",
+  "Energy & utilities",
+  "Manufacturing",
+  "Construction & real estate",
+  "Transportation & logistics",
+  "Information Technology",
+  "Other",
+];
+2.3 Investment Stage (single-select + Other)
+const INVESTMENT_STAGE_OPTIONS = [
+  "Startup",
+  "Seed",
+  "Growth",
+  "Mature",
+  "Distressed",
+  "Pre-IPO",
+  "Family-owned",
+  "Founder-led",
+  "Corporate carve-out",
+  "Other",
+];
+2.4 Geographic Focus (multi-select + Other)
+const GEO_FOCUS_OPTIONS = [
+  "Middle East & Africa",
+  "Latin America",
+  "Asia Pacific",
+  "Western Europe",
+  "Other",
+];
+2.5 Excluded Sectors (multi-select + Other)
+const EXCLUDED_SECTOR_OPTIONS = [
+  "Tobacco",
+  "Alcohol",
+  "Gambling",
+  "Defence",
+  "Fossil-fuel extraction",
+  "Other",
+];
+2.6 Value Creation Approach (multi-select + Other)
+const VALUE_CREATION_OPTIONS = [
+  "Market expansion and internationalization",
+  "Strategic repositioning",
+  "Digital transformation",
+  "Supply chain and procurement optimization",
+  "Pricing and commercial excellence",
+  "Other",
+];
+2.7 Exit Preferences (multi-select + Other)
+const EXIT_PREFERENCE_OPTIONS = [
+  "Management buyout",
+  "Recapitalization",
+  "IPO",
+  "Secondary buyout",
+  "Strategic sale",
+  "Other",
+];
+2.8 Financial Criteria (multi-select + Other)
+const FINANCIAL_CRITERIA_OPTIONS = [
+  "EBITDA",
+  "Free cash flows",
+  "YoY growth",
+  "Leverage capacity",
+  "Other",
+];
+2.9 Risk Appetite (single-select + Other – even though “Other” will rarely be used)
+const RISK_APPETITE_OPTIONS = [
+  "Low",
+  "Medium",
+  "High",
+  "Other",
+];
+2.10 Transaction Type (multi-select + Other)
+const TRANSACTION_TYPE_OPTIONS = [
+  "Majority control",
+  "Minority stake",
+  "Joint venture",
+  "Asset purchase",
+  "Debt financing",
+  "Convertible instruments",
+  "Secondary buys",
+  "Other",
+];
+2.11 Ownership Target (single-select + Other)
+const OWNERSHIP_TARGET_OPTIONS = [
+  "Single majority",
+  "Plurality with board control",
+  "Passive minority",
+  "Management roll",
+  "Other",
+];
+Numeric / text fields (like IRR, deal size, ticket size) are just plain <input>s and don’t need option arrays.
+3. Checkbox & “Other” Behaviour
+3.1 Generic Multi-Select Component
+Create MultiSelectWithOther.tsx that:
+Takes props:
+interface MultiSelectWithOtherProps {
+  label: string;
+  options: string[]; // includes "Other"
+  value: OptionSelection[];
+  onChange: (next: OptionSelection[]) => void;
+}
+For each option:
+Render a checkbox.
+If option !== "Other":
+Toggling checkbox adds/removes { value: option }.
+If option === "Other":
+Toggling adds/removes { value: "Other", otherText: string }.
+When “Other” is checked, show an inline text input:
+Placeholder: "Please specify..."
+Update otherText on change.
+Implementation sketch:
+const MultiSelectWithOther: React.FC<MultiSelectWithOtherProps> = ({
+  label,
+  options,
+  value,
+  onChange,
+}) => {
+  const handleToggle = (option: string) => {
+    const existing = value.find(v => v.value === option);
+    if (existing) {
+      onChange(value.filter(v => v.value !== option));
+    } else {
+      if (option === "Other") {
+        onChange([...value, { value: "Other", otherText: "" }]);
+      } else {
+        onChange([...value, { value: option }]);
+      }
+    }
+  };
+  const handleOtherTextChange = (text: string) => {
+    onChange(
+      value.map(v =>
+        v.value === "Other" ? { ...v, otherText: text } : v
+      )
+    );
+  };
+  const isChecked = (option: string) =>
+    value.some(v => v.value === option);
+  const other = value.find(v => v.value === "Other");
+  return (
+    <div className="field">
+      <label className="field-label">{label}</label>
+      <div className="field-options">
+        {options.map(option => (
+          <div key={option} className="option-row">
+            <label>
+              <input
+                type="checkbox"
+                checked={isChecked(option)}
+                onChange={() => handleToggle(option)}
+              />
+              <span>{option}</span>
+            </label>
+            {option === "Other" && isChecked("Other") && (
+              <input
+                type="text"
+                placeholder="Please specify..."
+                value={other?.otherText ?? ""}
+                onChange={e => handleOtherTextChange(e.target.value)}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+3.2 Generic Single-Select Component (Radio + Other)
+Create SingleSelectWithOther.tsx:
+interface SingleSelectWithOtherProps {
+  label: string;
+  options: string[]; // includes "Other"
+  value?: OptionSelection;
+  onChange: (next: OptionSelection) => void;
+}
+Behaviour:
+Render radio buttons.
+When user selects a normal option:
+onChange({ value: option }).
+When user selects “Other”:
+onChange({ value: "Other", otherText: "" }).
+Show inline text input for the “Other detail” and update otherText as user types.
+Skeleton:
+const SingleSelectWithOther: React.FC<SingleSelectWithOtherProps> = ({
+  label,
+  options,
+  value,
+  onChange,
+}) => {
+  const handleSelect = (option: string) => {
+    if (option === "Other") {
+      onChange({ value: "Other", otherText: value?.otherText ?? "" });
+    } else {
+      onChange({ value: option });
+    }
+  };
+  const isSelected = (option: string) => value?.value === option;
+  return (
+    <div className="field">
+      <label className="field-label">{label}</label>
+      <div className="field-options">
+        {options.map(option => {
+          const selected = isSelected(option);
+          return (
+            <div key={option} className="option-row">
+              <label>
+                <input
+                  type="radio"
+                  name={label}
+                  checked={selected}
+                  onChange={() => handleSelect(option)}
+                />
+                <span>{option}</span>
+              </label>
+              {option === "Other" && selected && (
+                <input
+                  type="text"
+                  placeholder="Please specify..."
+                  value={value?.otherText ?? ""}
+                  onChange={e =>
+                    onChange({ value: "Other", otherText: e.target.value })
+                  }
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+4. Putting It Together in FundMandateForm
+In FundMandateForm.tsx:
+Maintain a const [mandate, setMandate] = useState<FundMandate>(...).
+Use the generic components:
+<SingleSelectWithOther
+  label="Fund Type"
+  options={FUND_TYPE_OPTIONS}
+  value={mandate.fundType}
+  onChange={fundType => setMandate(prev => ({ ...prev, fundType }))}
+/>
+<MultiSelectWithOther
+  label="Sector Focus"
+  options={SECTOR_FOCUS_OPTIONS}
+  value={mandate.sectorFocus}
+  onChange={sectorFocus => setMandate(prev => ({ ...prev, sectorFocus }))}
+/>
+<MultiSelectWithOther
+  label="Geographic Focus"
+  options={GEO_FOCUS_OPTIONS}
+  value={mandate.geographicFocus}
+  onChange={geographicFocus => setMandate(prev => ({ ...prev, geographicFocus }))}
+/>
+// …and similarly for excluded sectors, value creation, exits, etc.
+<SingleSelectWithOther
+  label="Risk Appetite"
+  options={RISK_APPETITE_OPTIONS}
+  value={mandate.riskAppetite}
+  onChange={riskAppetite => setMandate(prev => ({ ...prev, riskAppetite }))}
+/>
+For numeric/text fields:
+<input
+  type="number"
+  value={mandate.targetIRR ?? ""}
+  onChange={e =>
+    setMandate(prev => ({
+      ...prev,
+      targetIRR: e.target.value ? Number(e.target.value) : undefined,
+    }))
+  }
+/>
+Add a Submit button that logs or returns the full FundMandate object so it can later be sent to the backend / agent.
+Goal: I should end up with a polished FundMandateForm that:
+Uses checkboxes for all multi-select fields with an “Other” + text pattern.
+Uses radio buttons + “Other” for all true single-select fields.
+Captures all data in the FundMandate structure with OptionSelections.
+Is easy to reuse in the larger chat-based PE tool later.
+Implement this now.
