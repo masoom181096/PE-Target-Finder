@@ -167,9 +167,10 @@ export default function Home() {
   };
 
   const isProcessing = chatMutation.isPending || reportMutation.isPending;
+  const currentPhase = state?.phase ?? "welcome";
 
   const renderPhaseContent = () => {
-    switch (state.phase) {
+    switch (currentPhase) {
       case "fundMandate":
         return (
           <div className="py-4">
@@ -250,7 +251,7 @@ export default function Home() {
         </div>
 
         <div className="hidden md:block flex-1 max-w-md mx-4">
-          <PhaseProgressHorizontal currentPhase={state.phase} />
+          <PhaseProgressHorizontal currentPhase={currentPhase} />
         </div>
 
         <div className="flex items-center gap-2">
@@ -263,7 +264,7 @@ export default function Home() {
       </header>
 
       <div className="md:hidden px-4 py-2 border-b border-border bg-muted/30">
-        <PhaseProgressHorizontal currentPhase={state.phase} />
+        <PhaseProgressHorizontal currentPhase={currentPhase} />
       </div>
 
       <div className="flex-1 flex overflow-hidden">
@@ -271,7 +272,7 @@ export default function Home() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
             Workflow Progress
           </h2>
-          <PhaseProgress currentPhase={state.phase} className="flex-1" />
+          <PhaseProgress currentPhase={currentPhase} className="flex-1" />
         </aside>
 
         <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
@@ -279,14 +280,14 @@ export default function Home() {
             <ChatWindow
               messages={messages}
               isProcessing={isProcessing}
-              inputDisabled={state.phase !== "welcome" && state.phase !== "countryScreening"}
+              inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening"}
               inputPlaceholder={
-                state.phase === "countryScreening"
+                currentPhase === "countryScreening"
                   ? "Type 'continue' to proceed..."
                   : "Type a message..."
               }
               onSendMessage={
-                state.phase === "welcome" || state.phase === "countryScreening"
+                currentPhase === "welcome" || currentPhase === "countryScreening"
                   ? handleSendMessage
                   : undefined
               }
@@ -316,14 +317,14 @@ export default function Home() {
                 <ChatWindow
                   messages={messages}
                   isProcessing={isProcessing}
-                  inputDisabled={state.phase !== "welcome" && state.phase !== "countryScreening"}
+                  inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening"}
                   inputPlaceholder={
-                    state.phase === "countryScreening"
+                    currentPhase === "countryScreening"
                       ? "Type 'continue' to proceed..."
                       : "Type a message..."
                   }
                   onSendMessage={
-                    state.phase === "welcome" || state.phase === "countryScreening"
+                    currentPhase === "welcome" || currentPhase === "countryScreening"
                       ? handleSendMessage
                       : undefined
                   }
