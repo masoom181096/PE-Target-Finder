@@ -1,0 +1,375 @@
+Replit Dev Prompt – “PE Target Finder Chat Tool (Demo)”
+Paste everything in this block into Replit’s AI (or your coding assistant) as the main instruction:
+You are an expert full-stack engineer.
+Build a chat-based PE Target Finder demo that replicates a specific PE analyst workflow.
+0. Constraints & Non-Goals
+Do NOT use OpenAI APIs.
+You may use no LLM at all, or some other local / non-OpenAI model if absolutely required, but the default should be rules + static data + templates.
+This is a concept demo, not a production system:
+It can use hard-coded sample data for companies.
+It can use scripted “thinking” text instead of real chain-of-thought.
+It is explicitly OK if the “thinking” feels repetitive or canned. The goal is showing the idea, not genuine intelligence.
+1. High-Level Idea
+Build a single-page web app with:
+A chat UI where an “Agent” talks to a Private Equity Analyst.
+A live “Agent Thinking” panel that shows step-by-step reasoning, similar in feel to GPT’s Thinking Mode.
+A multi-phase flow that mimics a PE analyst workflow to find target companies.
+At the end:
+The Agent shows 3 shortlisted companies (e.g., Mantla Platform, Instaworks, Disprztech).
+The Agent shows a small “system ranking” (1–3) based on a simple scoring model.
+The user chooses 1 company and clicks “Generate Report”.
+The app then generates a detailed investment memo for that company, using a fixed report template.
+No real data sources are required, but the UI copy must pretend the agent is pulling from Pitchbook, Crunchbase, Refinitiv, Capital IQ, CB Insights (this is a demo to sell the concept, everyone knows it’s static).
+2. Tech Stack & Project Structure
+Use a simple full-stack setup:
+Backend:
+Node.js + Express (or Fastify) with TypeScript.
+Frontend:
+React + Vite + TypeScript.
+Tailwind CSS for styling.
+Project structure (example):
+/backend
+src/server.ts
+src/routes/chat.ts
+src/data/companies.ts – static JSON for 3 sample companies.
+src/logic/stateMachine.ts – conversation state and flow logic.
+src/logic/scoring.ts – scoring & ranking logic.
+src/logic/reports.ts – report templates.
+/frontend
+src/main.tsx
+src/App.tsx
+src/components/ChatWindow.tsx
+src/components/ThinkingPanel.tsx
+src/components/PhaseProgress.tsx
+src/components/RecommendationsTable.tsx
+src/components/ReportView.tsx
+src/types.ts
+Set up a basic dev script so I can run:
+# backend
+cd backend
+npm install
+npm run dev
+# frontend
+cd frontend
+npm install
+npm run dev
+3. Core Concept: State Machine Behind a Chat
+Implement the whole flow as a finite state machine on the backend.
+3.1. Conversation State
+Define a ConversationState TypeScript interface, something like:
+export type Phase =
+  | "welcome"
+  | "fundMandate"
+  | "countryScreening"
+  | "weights"
+  | "thresholds"
+  | "shortlist"
+  | "comparison"
+  | "reportChosen";
+export interface FundMandate {
+  fundType?: string;
+  fundSize?: string;
+  sectorsFocus?: string[];
+  sectorsExcluded?: string[];
+  geosFocus?: string[];
+  geosExcluded?: string[];
+  dealSizeRange?: { min: number; max: number };
+  stage?: string;
+  holdingPeriodYears?: number;
+  riskAppetite?: "Low" | "Medium" | "High";
+}
+export interface ScoringWeights {
+  qualityOfEarnings: number;
+  financialPerformance: number;
+  industryAttractiveness: number;
+  competitivePositioning: number;
+  managementGovernance: number;
+  operationalEfficiency: number;
+  customerMarketDynamics: number;
+  productStrength: number;
+  exitFeasibility: number;
+  scalabilityPotential: number;
+}
+export interface Thresholds {
+  recurringRevenueMin?: number;      // %
+  debtToEbitdaMax?: number;         // multiple
+  revenueGrowthMin?: number;        // %
+  fcfConversionMin?: number;        // %
+  industryGrowthMin?: number;       // %
+  maxCustomerConcentration?: number;// %
+  // add a few more if needed
+}
+export interface ShortlistedCompanyScore {
+  id: string;
+  name: string;
+  country: string;
+  sector: string;
+  score: number;
+  rank: number;
+}
+export interface ConversationState {
+  phase: Phase;
+  fundMandate: FundMandate;
+  scoringWeights: ScoringWeights;
+  thresholds: Thresholds;
+  shortlist: ShortlistedCompanyScore[];
+  chosenCompanyId?: string;
+}
+Store ConversationState in memory, keyed by a sessionId passed from the frontend (for a demo, sessionId can just be a UUID stored in localStorage).
+4. Backend API
+Create a simple REST endpoint for now (no need for real streaming; the frontend can simulate streaming).
+POST /api/chat/next
+Request body:
+interface NextRequest {
+  sessionId: string;
+  userMessage?: string;
+  state?: ConversationState; // optional; backend may be source of truth
+}
+Response body:
+interface ThinkingStep {
+  id: string;
+  phase: Phase;
+  text: string;
+}
+interface AssistantMessage {
+  role: "assistant";
+  text: string;
+}
+interface NextResponse {
+  state: ConversationState;
+  assistantMessages: AssistantMessage[]; // messages to show in chat
+  thinkingSteps: ThinkingStep[];         // lines to append to "Agent Thinking" panel
+  uiHints?: {
+    showRecommendations?: boolean;
+    showReportForCompanyId?: string;
+  };
+}
+The backend should:
+Read state.phase.
+Based on the current phase and userMessage, update the state and generate:
+New assistantMessages.
+thinkingSteps describing what it “did”.
+No real NLP needed: you can assume forms / buttons on the frontend send structured data together with a user-friendly description string.
+5. Phases & Logic
+Phase: "welcome"
+First call (no state) → backend initializes phase = "fundMandate".
+Assistant message:
+“Hi, I’m your PE Target Finder Agent. I’ll ask you a few questions about your fund mandate and then shortlist companies for you.”
+Thinking steps:
+“Initializing PE screening session…”
+“Preparing to capture fund mandate…”
+Phase: "fundMandate"
+Backend expects structured mandate fields from the frontend (fund size, sectors, geos, etc.).
+After receiving them, it:
+Saves state.fundMandate.
+Moves to "countryScreening".
+Assistant message summarizing mandate:
+“Got it. You’re a growth equity fund focused on {sectors} in {geos}, with ticket size {X–Y} and {riskAppetite} risk appetite. Next, I’ll screen countries based on macro and regulatory factors.”
+Thinking steps (static templates):
+“Capturing core fund mandate parameters…”
+“Mapping deal size to fund size to estimate feasible number of deals…”
+“Preparing macro and regulatory filters for candidate countries…”
+Phase: "countryScreening"
+For demo: hard-code India and Singapore as candidate markets.
+Backend sets some example scores internally (no need to expose them directly):
+India: strong market size, strong tech ecosystem, moderate regulatory complexity, FX volatility medium.
+Singapore: smaller market size but excellent regulatory environment and capital markets access.
+Assistant message:
+“Based on your mandate, I am focusing on India and Singapore. I’ll treat both as eligible markets and proceed to define your scoring framework for target companies.”
+Thinking steps:
+“Querying macro indicators from Refinitiv and Capital IQ (demo mode)…”
+“Evaluating India: market size, tech ecosystem depth, regulatory risk, FX volatility…”
+“Evaluating Singapore: legal system strength, capital markets depth, ease of doing business…”
+Move to "weights".
+Phase: "weights"
+Define a default ScoringWeights that sums to 100 (e.g. 10 each).
+Frontend will render a form so the user can adjust each parameter; when user submits, backend:
+Validates the sum is 100 (if not, normalizes or returns an error).
+Saves state.scoringWeights.
+Moves to "thresholds".
+Assistant message:
+“Here’s the scoring framework I’ll use: [list parameters with current weights]. Adjust the weights so they reflect what matters most to you. The total must add up to 100.”
+Thinking steps:
+“Initializing scoring framework for target companies…”
+“Balancing weights across quality of earnings, industry attractiveness, competitive positioning, and exit feasibility…”
+Phase: "thresholds"
+Frontend shows a small set of numeric inputs for:
+recurringRevenueMin (%)
+debtToEbitdaMax
+revenueGrowthMin
+fcfConversionMin
+industryGrowthMin
+maxCustomerConcentration
+When user submits, backend saves state.thresholds and moves to "shortlist".
+Assistant message:
+“I’ve captured your key thresholds (e.g., recurring revenue ≥ X%, Debt/EBITDA ≤ Yx, FCF conversion ≥ Z%). I’ll now screen the universe of companies and shortlist the three that best match your mandate.”
+Thinking steps:
+“Applying hard filters: recurring revenue >= {X}%, Debt/EBITDA <= {Y}x…”
+“Filtering companies in India and Singapore from Refinitiv/Pitchbook universe (demo dataset)…”
+“Preparing to compute composite scores using your weights…”
+Phase: "shortlist"
+Use a static dataset of three companies defined in /backend/src/data/companies.ts. Example shape:
+export interface Company {
+  id: string;
+  name: string;
+  country: string;
+  hqCity: string;
+  sector: string;
+  businessSummary: string;
+  // simple financial & qualitative metrics for scoring
+  recurringRevenuePct: number;
+  debtToEbitda: number;
+  revenueGrowthPct: number;
+  fcfConversionPct: number;
+  industryGrowthPct: number;
+  customerConcentrationPct: number;
+  qualityOfEarningsScore: number;
+  financialPerformanceScore: number;
+  industryAttractivenessScore: number;
+  competitivePositioningScore: number;
+  managementGovernanceScore: number;
+  operationalEfficiencyScore: number;
+  customerMarketDynamicsScore: number;
+  productStrengthScore: number;
+  exitFeasibilityScore: number;
+  scalabilityPotentialScore: number;
+}
+For these 3:
+Mantla Platform (India – CPaaS for SMEs)
+Instaworks (India – CPaaS at larger scale)
+Disprztech (Singapore – SaaS AI-driven skilling / LXP)
+Implement computeCompositeScore(company, weights, thresholds) in scoring.ts:
+Apply thresholds as hard filters (if it fails threshold, subtract penalty or mark as low score).
+Weighted sum of the top-level scores.
+Sort companies descending by score; assign rank = 1, 2, 3 and store in state.shortlist.
+Assistant message:
+“I’ve shortlisted three companies that best match your mandate. Here they are, along with my internal ranking based on your weights and thresholds. You can review them and decide which one you want a detailed report for.”
+Also send a structured summary in assistantMessages:
+e.g., one message summarizing:
+Rank 1: Mantla – key 2–3 bullets.
+Rank 2: Instaworks – 2–3 bullets.
+Rank 3: Disprztech – 2–3 bullets.
+Thinking steps:
+“Screening demo universe of companies using your thresholds…”
+“Calculating weighted scores across earnings quality, growth, industry attractiveness, and exit feasibility…”
+“Final ranking: 1) {name1}, 2) {name2}, 3) {name3}. Presenting shortlist to the analyst…”
+Do NOT auto-choose a “best” for the user; only provide the ranking.
+Move to "comparison".
+Phase: "comparison"
+Backend expects a chosenCompanyId from the frontend when user clicks “Generate report” for one of the three.
+Until that happens, backend just returns the same shortlist and messages like:
+“Review the three shortlisted companies and click ‘Generate Report’ on your preferred target. Remember: this is your decision; I’m only providing structure and scoring.”
+Once a company is chosen:
+Save state.chosenCompanyId.
+Move to "reportChosen".
+Phase: "reportChosen"
+Backend calls a generateReport(chosenCompanyId, state) function in reports.ts.
+This returns a structured object representing the report sections:
+export interface CompanyReport {
+  header: {
+    date: string;
+    companyName: string;
+    sector: string;
+    headquarters: string;
+    sourceDatabases: string[];
+  };
+  executiveSummary: string[];
+  countryAnalysis: {
+    table: { parameter: string; india: string; singapore: string }[]; // or adapt per company
+    keyPoints: string[];
+  };
+  financialAnalysis: {
+    qualityOfEarnings: { label: string; detail: string }[];
+    growthAndPositioning: { label: string; detail: string }[];
+  };
+  operationalAndValueCreation: string[];
+  exitFeasibility: string[];
+}
+For the demo, hard-code three separate report templates inside reports.ts – one for each company – based on the narrative of my DOCX files:
+Disprztech: AI-powered skilling & LXP, strong enterprise SaaS fundamentals, Singapore HQ.
+Instaworks: Indian CPaaS player with global presence, trusted by big tech.
+Mantla Platform: Indian CPaaS focused on SMEs, deep integration across channels.
+Header with:
+sourceDatabases: ["Pitchbook", "Crunchbase", "Refinitiv", "Capital IQ", "CB Insights"]
+Logical sections:
+Executive Summary (3–6 bullets)
+Country Analysis (table + bullets)
+Company Profile & Financial Analysis (two sub-tables)
+Operational Strength & Value Creation
+Exit Feasibility & Valuation Upside
+Assistant messages:
+“Generating a detailed report for {chosenCompanyName}, using your fund mandate, thresholds, and the demo data representing Refinitiv, Pitchbook, Capital IQ and CB Insights.”
+Thinking steps:
+“Pulling macro and sector indicators from Refinitiv and Capital IQ (demo mode)…”
+“Assembling company profile and financials from Pitchbook and Crunchbase (demo mode)…”
+“Structuring IC-style report: Executive Summary → Country Analysis → Financials → Value Creation → Exit Feasibility…”
+Response uiHints.showReportForCompanyId = chosenCompanyId so the frontend knows to switch to report view.
+6. Frontend Requirements
+6.1. Layout
+Single page with:
+Top bar / header:
+Title: “PE Target Finder (Demo)”
+Small badge: “Concept demo – static data, simulated sources (Refinitiv, CIQ, Pitchbook, etc.)”
+Main area:
+Left: ChatWindow
+Right: ThinkingPanel (collapsible)
+Top of main: PhaseProgress component.
+When in "comparison" phase:
+Below chat, show RecommendationsTable listing the 3 companies with:
+Name, Country, Sector
+Composite Score, Rank
+2–3 bullets each (passed in from backend or pre-derived)
+Button: “Generate report”
+When in "reportChosen" phase:
+Show ReportView:
+Nicely formatted sections based on CompanyReport.
+6.2. ChatWindow
+Displays conversation as bubbles (user + assistant).
+At the bottom:
+When the current phase expects “structured” input (e.g., weights, thresholds), ChatWindow shows inline forms or opens a small modal/form section on the right, and sends both:
+userMessage (for display)
+The structured data needed by backend.
+6.3. ThinkingPanel
+Shows a list of thinkingSteps from the backend.
+Each step:
+Small label with phase name.
+Body text.
+Newest at bottom.
+Style like a code/console panel:
+Monospace or smaller text.
+Subtle background.
+Option to “Clear thinking log” and “Collapse / Expand”.
+6.4. PhaseProgress
+Horizontal stepper with labels:
+Fund Mandate
+Country Screening
+Scoring Weights
+Thresholds
+Shortlist
+Compare & Choose
+Report
+Highlight current phase based on state.phase.
+7. UX & Copy Details
+Agent must occasionally say explicitly:
+“I’m using demo data that simulates what we would pull from Refinitiv, Capital IQ, Pitchbook, Crunchbase, and CB Insights in a production version.”
+The “system ranking” should be visible but non-authoritative, e.g.:
+“System ranking (based on your weights):
+1️⃣ Mantla Platform
+2️⃣ Instaworks
+3️⃣ Disprztech
+You should still pick the company you believe is the best fit for your mandate.”
+No button like “Let the system choose for me”. Only “Generate report” per company.
+8. What to Deliver
+A working dev environment where:
+I can run backend and frontend.
+I can click through the full flow:
+Start chat → fund mandate questions.
+Country screening summary.
+Weight configuration.
+Threshold configuration.
+See 3-company shortlist + ranks.
+Pick one → generate report.
+See a nicely formatted report, with sources listed.
+The Thinking panel shows steps at each phase.
+Code should be clean, commented, and reasonably modular (stateMachine.ts, scoring.ts, reports.ts, etc.).
+End of Replit dev prompt.
