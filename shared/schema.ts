@@ -500,7 +500,7 @@ export const nextRequestSchema = z.object({
   sessionId: z.string(),
   userMessage: z.string().optional(),
   formData: z.object({
-    type: z.enum(["fundMandate", "restrictions", "weights", "thresholds", "chooseCompany"]),
+    type: z.enum(["fundMandate", "restrictions", "weights", "thresholds", "chooseCompany", "selectCompanies"]),
     data: z.any().optional(),
   }).optional(),
 });
