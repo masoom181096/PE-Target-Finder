@@ -344,6 +344,8 @@ export default function Home() {
           className="h-full"
           selectedTemplate={reportTemplate}
           onTemplateChange={handleTemplateChange}
+          companyId={selectedCompanyId}
+          thresholds={state.thresholds}
         />
       </div>
     );

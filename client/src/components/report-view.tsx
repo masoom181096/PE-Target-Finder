@@ -14,6 +14,9 @@ import {
   Download,
   ChevronDown,
   Star,
+  ChevronUp,
+  Loader2,
+  Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,11 +30,53 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  Legend,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+} from "recharts";
 import { jsPDF } from "jspdf";
-import type { CompanyReport, ReportTemplate } from "@shared/schema";
-import { reportTemplateLabels, reportTemplateDescriptions } from "@shared/schema";
+import type { CompanyReport, ReportTemplate, Thresholds } from "@shared/schema";
+import { reportTemplateLabels, reportTemplateDescriptions, defaultThresholds } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+
+interface CompanyDetails {
+  id: string;
+  name: string;
+  recurringRevenuePct: number;
+  revenueGrowthPct: number;
+  fcfConversionPct: number;
+  debtToEbitda: number;
+  industryGrowthPct: number;
+  customerConcentrationPct: number;
+  qualityOfEarningsScore: number;
+  financialPerformanceScore: number;
+  industryAttractivenessScore: number;
+  competitivePositioningScore: number;
+  managementGovernanceScore: number;
+  operationalEfficiencyScore: number;
+  customerMarketDynamicsScore: number;
+  productStrengthScore: number;
+  exitFeasibilityScore: number;
+  scalabilityPotentialScore: number;
+}
 
 export interface TemplatedReportData extends CompanyReport {
   templateType: ReportTemplate;
@@ -280,6 +325,8 @@ interface ReportViewProps {
   className?: string;
   selectedTemplate: ReportTemplate;
   onTemplateChange: (template: ReportTemplate) => void;
+  companyId?: string;
+  thresholds?: Thresholds;
 }
 
 const sections = [
@@ -290,10 +337,41 @@ const sections = [
   { id: "exit-feasibility", label: "Exit Feasibility", icon: DollarSign },
 ];
 
-export function ReportView({ report, onBack, className, selectedTemplate, onTemplateChange }: ReportViewProps) {
+export function ReportView({ report, onBack, className, selectedTemplate, onTemplateChange, companyId, thresholds = defaultThresholds }: ReportViewProps) {
   const [activeSection, setActiveSection] = useState("executive-summary");
+  const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [scoringChartOpen, setScoringChartOpen] = useState(true);
+  const [financialChartOpen, setFinancialChartOpen] = useState(true);
   const contentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (companyId) {
+      setIsLoadingDetails(true);
+      setCompanyDetails(null);
+      fetch(`/api/companies/${companyId}/details`)
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (data && data.id) {
+            setCompanyDetails(data);
+          } else {
+            setCompanyDetails(null);
+          }
+          setIsLoadingDetails(false);
+        })
+        .catch((err) => {
+          console.error("Failed to fetch company details:", err);
+          setCompanyDetails(null);
+          setIsLoadingDetails(false);
+        });
+    }
+  }, [companyId]);
 
   const sectionComponents: Record<string, () => JSX.Element> = {
     executiveSummary: () => (
@@ -436,9 +514,34 @@ export function ReportView({ report, onBack, className, selectedTemplate, onTemp
             onTemplateChange={onTemplateChange}
           />
           
-          {orderedSections.map((sectionKey) => {
+          {orderedSections.map((sectionKey, index) => {
             const Component = sectionComponents[sectionKey];
-            return Component ? Component() : null;
+            return (
+              <div key={sectionKey}>
+                {Component ? Component() : null}
+                {sectionKey === "executiveSummary" && (
+                  <div className="mt-8">
+                    <ScoringRadarChartSection
+                      companyDetails={companyDetails}
+                      isLoading={isLoadingDetails}
+                      isOpen={scoringChartOpen}
+                      onOpenChange={setScoringChartOpen}
+                    />
+                  </div>
+                )}
+                {sectionKey === "financialAnalysis" && (
+                  <div className="mt-8">
+                    <FinancialMetricsChartSection
+                      companyDetails={companyDetails}
+                      thresholds={thresholds}
+                      isLoading={isLoadingDetails}
+                      isOpen={financialChartOpen}
+                      onOpenChange={setFinancialChartOpen}
+                    />
+                  </div>
+                )}
+              </div>
+            );
           })}
         </div>
       </ScrollArea>
@@ -757,5 +860,323 @@ function ExitFeasibilitySection({ points, emphasisIndices = [] }: { points: stri
         </ul>
       </CardContent>
     </Card>
+  );
+}
+
+const SCORING_DIMENSIONS = [
+  { key: "qualityOfEarningsScore", label: "Quality of Earnings", shortLabel: "QoE" },
+  { key: "financialPerformanceScore", label: "Financial Performance", shortLabel: "Financial" },
+  { key: "industryAttractivenessScore", label: "Industry Attractiveness", shortLabel: "Industry" },
+  { key: "competitivePositioningScore", label: "Competitive Positioning", shortLabel: "Competitive" },
+  { key: "managementGovernanceScore", label: "Management & Governance", shortLabel: "Mgmt" },
+  { key: "operationalEfficiencyScore", label: "Operational Efficiency", shortLabel: "Operations" },
+  { key: "customerMarketDynamicsScore", label: "Customer & Market", shortLabel: "Customer" },
+  { key: "productStrengthScore", label: "Product Strength", shortLabel: "Product" },
+  { key: "exitFeasibilityScore", label: "Exit Feasibility", shortLabel: "Exit" },
+  { key: "scalabilityPotentialScore", label: "Scalability Potential", shortLabel: "Scalability" },
+];
+
+const BENCHMARK_THRESHOLD = 70;
+
+interface ScoringRadarChartSectionProps {
+  companyDetails: CompanyDetails | null;
+  isLoading: boolean;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function ScoringRadarChartSection({ companyDetails, isLoading, isOpen, onOpenChange }: ScoringRadarChartSectionProps) {
+  const radarData = SCORING_DIMENSIONS.map((dim) => ({
+    dimension: dim.shortLabel,
+    fullName: dim.label,
+    score: companyDetails ? (companyDetails[dim.key as keyof CompanyDetails] as number) : 0,
+    benchmark: BENCHMARK_THRESHOLD,
+  }));
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={onOpenChange}>
+      <Card data-testid="section-scoring-radar">
+        <CardHeader className="pb-3">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between p-0 h-auto hover-elevate">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Target className="h-5 w-5 text-primary" />
+                Scoring Analysis
+              </CardTitle>
+              {isOpen ? (
+                <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              )}
+            </Button>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12" data-testid="scoring-radar-loading">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-muted-foreground text-sm">Loading scoring data...</p>
+                </div>
+              </div>
+            ) : !companyDetails ? (
+              <div className="flex items-center justify-center py-12" data-testid="scoring-radar-empty">
+                <p className="text-muted-foreground text-sm">Scoring data not available</p>
+              </div>
+            ) : (
+              <div className="h-[400px] md:h-[450px]" data-testid="scoring-radar-chart">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={radarData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
+                    <PolarGrid stroke="hsl(var(--border))" />
+                    <PolarAngleAxis 
+                      dataKey="dimension" 
+                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    />
+                    <PolarRadiusAxis 
+                      angle={90} 
+                      domain={[0, 100]} 
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      axisLine={false}
+                    />
+                    <Radar
+                      name="Benchmark"
+                      dataKey="benchmark"
+                      stroke="hsl(var(--muted-foreground))"
+                      fill="hsl(var(--muted-foreground))"
+                      fillOpacity={0.1}
+                      strokeDasharray="5 5"
+                    />
+                    <Radar
+                      name="Company Score"
+                      dataKey="score"
+                      stroke="hsl(var(--primary))"
+                      fill="hsl(var(--primary))"
+                      fillOpacity={0.3}
+                      strokeWidth={2}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: "20px" }}
+                      formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                      }}
+                      formatter={(value: number, name: string, props: { payload: { fullName: string } }) => [
+                        `${value}/100`,
+                        name === "score" ? props.payload.fullName : name,
+                      ]}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {companyDetails && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <p className="text-xs text-muted-foreground text-center">
+                  The radar chart displays the company's scores across 10 dimensions compared to the benchmark threshold of {BENCHMARK_THRESHOLD}/100.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+}
+
+interface FinancialMetricsChartSectionProps {
+  companyDetails: CompanyDetails | null;
+  thresholds: Thresholds;
+  isLoading: boolean;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function FinancialMetricsChartSection({ companyDetails, thresholds, isLoading, isOpen, onOpenChange }: FinancialMetricsChartSectionProps) {
+  const metricsData = companyDetails ? [
+    {
+      name: "Recurring Revenue",
+      value: companyDetails.recurringRevenuePct,
+      benchmark: thresholds.recurringRevenueMin || 50,
+      unit: "%",
+      higherIsBetter: true,
+    },
+    {
+      name: "Revenue Growth",
+      value: companyDetails.revenueGrowthPct,
+      benchmark: thresholds.revenueGrowthMin || 15,
+      unit: "%",
+      higherIsBetter: true,
+    },
+    {
+      name: "FCF Conversion",
+      value: companyDetails.fcfConversionPct,
+      benchmark: thresholds.fcfConversionMin || 20,
+      unit: "%",
+      higherIsBetter: true,
+    },
+    {
+      name: "Industry Growth",
+      value: companyDetails.industryGrowthPct,
+      benchmark: thresholds.industryGrowthMin || 10,
+      unit: "%",
+      higherIsBetter: true,
+    },
+    {
+      name: "Customer Concentration",
+      value: companyDetails.customerConcentrationPct,
+      benchmark: thresholds.maxCustomerConcentration || 30,
+      unit: "%",
+      higherIsBetter: false,
+    },
+  ] : [];
+  
+  const ratioMetric = companyDetails ? {
+    name: "Debt/EBITDA",
+    value: companyDetails.debtToEbitda,
+    benchmark: thresholds.debtToEbitdaMax || 3,
+    unit: "x",
+    higherIsBetter: false,
+  } : null;
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={onOpenChange}>
+      <Card data-testid="section-financial-metrics-chart">
+        <CardHeader className="pb-3">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between p-0 h-auto hover-elevate">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Financial Metrics Overview
+              </CardTitle>
+              {isOpen ? (
+                <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              )}
+            </Button>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12" data-testid="financial-metrics-loading">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-muted-foreground text-sm">Loading financial metrics...</p>
+                </div>
+              </div>
+            ) : !companyDetails ? (
+              <div className="flex items-center justify-center py-12" data-testid="financial-metrics-empty">
+                <p className="text-muted-foreground text-sm">Financial metrics not available</p>
+              </div>
+            ) : (
+              <div className="h-[280px]" data-testid="financial-metrics-chart">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={metricsData}
+                    layout="vertical"
+                    margin={{ top: 10, right: 30, left: 100, bottom: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis 
+                      type="number" 
+                      domain={[0, 100]} 
+                      tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={90}
+                      tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                      }}
+                      formatter={(value: number, name: string) => [
+                        `${value}%`,
+                        name === "value" ? "Company Value" : "Benchmark",
+                      ]}
+                    />
+                    <Legend 
+                      formatter={(value) => (
+                        <span className="text-sm text-foreground">
+                          {value === "value" ? "Company Value" : "Benchmark Threshold"}
+                        </span>
+                      )}
+                    />
+                    <Bar
+                      dataKey="value"
+                      fill="hsl(var(--primary))"
+                      radius={[0, 4, 4, 0]}
+                      barSize={20}
+                    />
+                    <Bar
+                      dataKey="benchmark"
+                      fill="hsl(var(--muted-foreground))"
+                      fillOpacity={0.4}
+                      radius={[0, 4, 4, 0]}
+                      barSize={20}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {companyDetails && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {metricsData.map((metric) => {
+                    const meetsThreshold = metric.higherIsBetter 
+                      ? metric.value >= metric.benchmark 
+                      : metric.value <= metric.benchmark;
+                    return (
+                      <div key={metric.name} className="text-center">
+                        <div className={cn(
+                          "text-2xl font-bold",
+                          meetsThreshold ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"
+                        )}>
+                          {metric.value}{metric.unit}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{metric.name}</div>
+                        <div className="text-xs text-muted-foreground/60">
+                          {metric.higherIsBetter ? "Min" : "Max"}: {metric.benchmark}{metric.unit}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {ratioMetric && (() => {
+                    const meetsThreshold = ratioMetric.value <= ratioMetric.benchmark;
+                    return (
+                      <div key={ratioMetric.name} className="text-center">
+                        <div className={cn(
+                          "text-2xl font-bold",
+                          meetsThreshold ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"
+                        )}>
+                          {ratioMetric.value}{ratioMetric.unit}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{ratioMetric.name}</div>
+                        <div className="text-xs text-muted-foreground/60">
+                          Max: {ratioMetric.benchmark}{ratioMetric.unit}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }

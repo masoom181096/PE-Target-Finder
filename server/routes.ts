@@ -137,5 +137,40 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/companies/:companyId/details", (req: Request, res: Response) => {
+    try {
+      const { companyId } = req.params;
+      const company = getCompanyById(companyId);
+      
+      if (!company) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+      
+      return res.json({
+        id: company.id,
+        name: company.name,
+        recurringRevenuePct: company.recurringRevenuePct,
+        revenueGrowthPct: company.revenueGrowthPct,
+        fcfConversionPct: company.fcfConversionPct,
+        debtToEbitda: company.debtToEbitda,
+        industryGrowthPct: company.industryGrowthPct,
+        customerConcentrationPct: company.customerConcentrationPct,
+        qualityOfEarningsScore: company.qualityOfEarningsScore,
+        financialPerformanceScore: company.financialPerformanceScore,
+        industryAttractivenessScore: company.industryAttractivenessScore,
+        competitivePositioningScore: company.competitivePositioningScore,
+        managementGovernanceScore: company.managementGovernanceScore,
+        operationalEfficiencyScore: company.operationalEfficiencyScore,
+        customerMarketDynamicsScore: company.customerMarketDynamicsScore,
+        productStrengthScore: company.productStrengthScore,
+        exitFeasibilityScore: company.exitFeasibilityScore,
+        scalabilityPotentialScore: company.scalabilityPotentialScore,
+      });
+    } catch (error) {
+      console.error("Company details API error:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }

@@ -8,12 +8,18 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { BarChart3, TrendingUp, Building2, Trophy, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BarChart3, TrendingUp, Building2, Trophy, Loader2, Target } from "lucide-react";
 import type { ShortlistedCompanyScore } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +74,7 @@ export function CompanyComparison({
   const [selectedIds, setSelectedIds] = useState<string[]>(
     companies.slice(0, Math.min(3, companies.length)).map((c) => c.id)
   );
+  const [chartView, setChartView] = useState<"bar" | "radar">("bar");
 
   const toggleCompany = (id: string) => {
     if (selectedIds.includes(id)) {
@@ -210,58 +217,124 @@ export function CompanyComparison({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            Scoring Breakdown by Dimension
-          </CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Scoring Breakdown by Dimension
+            </CardTitle>
+            <div className="flex items-center gap-1" data-testid="chart-view-toggle">
+              <Button
+                variant={chartView === "bar" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setChartView("bar")}
+                data-testid="button-bar-chart-view"
+              >
+                <BarChart3 className="h-4 w-4 mr-1" />
+                Bar
+              </Button>
+              <Button
+                variant={chartView === "radar" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setChartView("radar")}
+                data-testid="button-radar-chart-view"
+              >
+                <Target className="h-4 w-4 mr-1" />
+                Radar
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px] md:h-[500px]" data-testid="comparison-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={chartData}
-                layout="vertical"
-                margin={{ top: 20, right: 30, left: 120, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} />
-                <XAxis type="number" domain={[0, 100]} tickCount={6} />
-                <YAxis
-                  type="category"
-                  dataKey="dimension"
-                  width={110}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-                  }}
-                  labelStyle={{ fontWeight: 600 }}
-                  formatter={(value: number, name: string) => {
-                    const company = companies.find((c) => c.id === name);
-                    return [`${value}/100`, company?.name || name];
-                  }}
-                />
-                <Legend
-                  formatter={(value: string) => {
-                    const company = companies.find((c) => c.id === value);
-                    return company?.name || value;
-                  }}
-                />
-                {sortedSelected.map((company, index) => (
-                  <Bar
-                    key={company.id}
-                    dataKey={company.id}
-                    fill={COMPANY_COLORS[index % COMPANY_COLORS.length]}
-                    radius={[0, 4, 4, 0]}
-                    barSize={16}
+          {chartView === "bar" ? (
+            <div className="h-[400px] md:h-[500px]" data-testid="comparison-bar-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  margin={{ top: 20, right: 30, left: 120, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis type="number" domain={[0, 100]} tickCount={6} tick={{ fill: "hsl(var(--muted-foreground))" }} />
+                  <YAxis
+                    type="category"
+                    dataKey="dimension"
+                    width={110}
+                    tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
                   />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                    }}
+                    labelStyle={{ fontWeight: 600 }}
+                    formatter={(value: number, name: string) => {
+                      const company = companies.find((c) => c.id === name);
+                      return [`${value}/100`, company?.name || name];
+                    }}
+                  />
+                  <Legend
+                    formatter={(value: string) => {
+                      const company = companies.find((c) => c.id === value);
+                      return <span className="text-sm text-foreground">{company?.name || value}</span>;
+                    }}
+                  />
+                  {sortedSelected.map((company, index) => (
+                    <Bar
+                      key={company.id}
+                      dataKey={company.id}
+                      fill={COMPANY_COLORS[index % COMPANY_COLORS.length]}
+                      radius={[0, 4, 4, 0]}
+                      barSize={16}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-[400px] md:h-[500px]" data-testid="comparison-radar-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={chartData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
+                  <PolarGrid stroke="hsl(var(--border))" />
+                  <PolarAngleAxis 
+                    dataKey="dimension" 
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <PolarRadiusAxis 
+                    angle={90} 
+                    domain={[0, 100]} 
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                  />
+                  {sortedSelected.map((company, index) => (
+                    <Radar
+                      key={company.id}
+                      name={company.name}
+                      dataKey={company.id}
+                      stroke={COMPANY_COLORS[index % COMPANY_COLORS.length]}
+                      fill={COMPANY_COLORS[index % COMPANY_COLORS.length]}
+                      fillOpacity={0.2}
+                      strokeWidth={2}
+                    />
+                  ))}
+                  <Legend 
+                    wrapperStyle={{ paddingTop: "20px" }}
+                    formatter={(value) => <span className="text-sm text-foreground">{value}</span>}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+                    }}
+                    formatter={(value: number, name: string) => [`${value}/100`, name]}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </CardContent>
       </Card>
 
