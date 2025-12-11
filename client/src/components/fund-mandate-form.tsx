@@ -139,6 +139,7 @@ interface FundMandateFormProps {
 export function FundMandateForm({ onSubmit, isLoading }: FundMandateFormProps) {
   const [mandate, setMandate] = useState<FundMandate>({
     sectorFocus: [],
+    investmentStage: [],
     geographicFocus: [{ value: "India" }, { value: "Singapore" }],
     excludedSectors: [],
     valueCreationApproach: [],
@@ -169,9 +170,7 @@ export function FundMandateForm({ onSubmit, isLoading }: FundMandateFormProps) {
       sectorsExcluded: mandate.excludedSectors.map(s => s.value === "Other" && s.otherText ? s.otherText : s.value),
       dealSizeMin: mandate.dealSizeRange?.min,
       dealSizeMax: mandate.dealSizeRange?.max,
-      stage: mandate.investmentStage?.value === "Other" && mandate.investmentStage.otherText 
-        ? mandate.investmentStage.otherText 
-        : mandate.investmentStage?.value,
+      stage: mandate.investmentStage.map(s => s.value === "Other" && s.otherText ? s.otherText : s.value).join(", "),
     };
     
     onSubmit(enrichedMandate);
@@ -272,7 +271,7 @@ export function FundMandateForm({ onSubmit, isLoading }: FundMandateFormProps) {
                 testIdPrefix="sector-focus"
               />
 
-              <SingleSelectWithOther
+              <MultiSelectWithOther
                 label="Investment Stage"
                 options={INVESTMENT_STAGE_OPTIONS}
                 value={mandate.investmentStage}

@@ -88,7 +88,7 @@ export interface FundMandate {
   // Categorical fields (use checkboxes / radios + Other)
   fundType?: OptionSelection;
   sectorFocus: OptionSelection[];
-  investmentStage?: OptionSelection;
+  investmentStage: OptionSelection[];
   geographicFocus: OptionSelection[];
   excludedSectors: OptionSelection[];
   valueCreationApproach: OptionSelection[];
@@ -217,6 +217,7 @@ export interface ConversationState {
 // Default fund mandate with empty arrays
 export const defaultFundMandate: FundMandate = {
   sectorFocus: [],
+  investmentStage: [],
   geographicFocus: [],
   excludedSectors: [],
   valueCreationApproach: [],
