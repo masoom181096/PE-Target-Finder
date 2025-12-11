@@ -327,6 +327,7 @@ interface ReportViewProps {
   onTemplateChange: (template: ReportTemplate) => void;
   companyId?: string;
   thresholds?: Thresholds;
+  embedded?: boolean;
 }
 
 const sections = [
@@ -337,7 +338,7 @@ const sections = [
   { id: "exit-feasibility", label: "Exit Feasibility", icon: DollarSign },
 ];
 
-export function ReportView({ report, onBack, className, selectedTemplate, onTemplateChange, companyId, thresholds = defaultThresholds }: ReportViewProps) {
+export function ReportView({ report, onBack, className, selectedTemplate, onTemplateChange, companyId, thresholds = defaultThresholds, embedded = false }: ReportViewProps) {
   const [activeSection, setActiveSection] = useState("executive-summary");
   const [companyDetails, setCompanyDetails] = useState<CompanyDetails | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);

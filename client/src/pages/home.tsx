@@ -13,6 +13,7 @@ import { ShortlistCard } from "@/components/shortlist-card";
 import { RecommendationsTable } from "@/components/recommendations-table";
 import { CompanyComparison } from "@/components/company-comparison";
 import { ReportView } from "@/components/report-view";
+import { DueDiligenceReports } from "@/components/due-diligence-reports";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionManager } from "@/components/session-manager";
 import { Button } from "@/components/ui/button";
@@ -217,6 +218,20 @@ export default function Home() {
     });
   };
 
+  const handleProceedToDueDiligence = (selectedCompanyIds: string[]) => {
+    const selectedNames = selectedCompanyIds
+      .map((id) => state.shortlist.find((c) => c.id === id)?.name)
+      .filter(Boolean)
+      .join(" and ");
+    const message = `Proceeding to due diligence with ${selectedNames}`;
+    setMessages((prev) => [...prev, { role: "user", text: message }]);
+    chatMutation.mutate({
+      sessionId,
+      userMessage: message,
+      formData: { type: "selectCompanies", data: { selectedCompanies: selectedCompanyIds } },
+    });
+  };
+
   const handleNewSession = () => {
     localStorage.removeItem("pe-finder-session");
     window.location.reload();
@@ -235,7 +250,7 @@ export default function Home() {
       thresholds: (session.thresholds as Thresholds) || initialConversationState.thresholds,
       subParamPreferences: initialConversationState.subParamPreferences,
       shortlist: (session.shortlist as ConversationState["shortlist"]) || [],
-      chosenCompanyId: session.chosenCompanyId || undefined,
+      chosenCompanyIds: (session.chosenCompanyIds as string[]) || (session.chosenCompanyId ? [session.chosenCompanyId] : []),
       reportTemplate: initialConversationState.reportTemplate,
     };
     setState(loadedState);
@@ -324,6 +339,7 @@ export default function Home() {
               <RecommendationsTable
                 companies={state.shortlist}
                 onGenerateReport={handleGenerateReport}
+                onProceedToDueDiligence={handleProceedToDueDiligence}
                 isLoading={isProcessing}
                 selectedCompanyId={selectedCompanyId}
               />
@@ -345,6 +361,18 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+        );
+      case "dueDiligence":
+        return (
+          <div className="py-4">
+            <DueDiligenceReports
+              companyIds={state.chosenCompanyIds}
+              companies={state.shortlist}
+              reportTemplate={reportTemplate}
+              onTemplateChange={handleTemplateChange}
+              thresholds={state.thresholds}
+            />
           </div>
         );
       default:
