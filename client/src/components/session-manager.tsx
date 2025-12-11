@@ -54,7 +54,7 @@ export function SessionManager({ sessionId, currentState, messages, thinkingStep
         scoringWeights: currentState.scoringWeights,
         thresholds: currentState.thresholds,
         shortlist: currentState.shortlist,
-        chosenCompanyId: currentState.chosenCompanyId,
+        chosenCompanyIds: currentState.chosenCompanyIds,
         messages,
         thinkingSteps,
       };

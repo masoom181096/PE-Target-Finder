@@ -1,0 +1,92 @@
+Right now the shortlist/comparison phase only lets the user "Generate report" for one company. It must instead support selecting at least 2 companies and generating reports for all selected.
+ 
+1. State changes
+ 
+In ConversationState, replace:
+ 
+  chosenCompanyId?: string;
+ 
+with:
+ 
+  chosenCompanyIds: string[]; // default []
+ 
+Add a new phase (or reuse reportChosen as multi):
+ 
+  type Phase =
+    ...
+    | "comparison"
+    | "dueDiligence"; // new, for multi-report stage
+ 
+2. Frontend – comparison UI
+ 
+In the comparison/shortlist view:
+ 
+- For each company row (Mantla, Instaworks, Disprztech), add a checkbox column:
+ 
+    [ ] Select for due diligence
+ 
+- At the bottom, add a primary button:
+ 
+    "Proceed to Due Diligence"
+ 
+- Disable that button while selectedCompanies.length < 2.
+- When clicked, send a payload in POST /api/chat/next:
+ 
+  {
+    sessionId,
+    selectedCompanies: ["mantla", "instaworks"], // example
+  }
+ 
+and keep userMessage purely for chat text (optional).
+ 
+3. Backend – handle selection
+ 
+In phase === "comparison":
+ 
+- Read body.selectedCompanies (string[]).
+- Validate:
+    - If !selectedCompanies or selectedCompanies.length < 2:
+        - Return an assistant message:
+          "Please select at least two companies to move into the next due diligence stage."
+          and DO NOT change phase.
+    - Else:
+        - Set state.chosenCompanyIds = selectedCompanies.
+        - Set state.phase = "dueDiligence".
+ 
+- Also log a thinking step like:
+    - "Locking in Mantla Platform and Instaworks for detailed due diligence…"
+ 
+4. Due diligence / report generation phase
+ 
+In phase === "dueDiligence":
+ 
+- For each companyId in state.chosenCompanyIds:
+    - Generate a CompanyReport (using the existing report templates for Mantla, Instaworks, Disprztech).
+- Return:
+ 
+  - assistantMessages:
+      - A brief explanation:
+        "I've generated detailed reports for the companies you selected. Use the tabs below to review them side by side."
+  - A new field in the response:
+ 
+      reports: CompanyReport[]   // one per selected company
+ 
+Update the frontend to render a side-by-side or tabbed view:
+ 
+- Tabs:
+    - [ Mantla Platform ] [ Instaworks ] [ Disprztech ] (only for those selected)
+- Each tab shows the same structured report UI you already built:
+    - Executive Summary
+    - Country Analysis
+    - Financial Analysis
+    - Operational & Value Creation
+    - Exit Feasibility
+ 
+This way:
+- The user MUST select at least two out of the three.
+- Reports are generated for ALL selected companies.
+- These selected companies are the ones "taken forward" into the DD stage.
+ 
+5. Ranking preservation
+ 
+Keep the ranking logic you already implemented (Mantla rank 1, Instaworks 2, Disprztech 3) when displaying the shortlist table, but selection must be independent of rank (the analyst might deliberately take 2 and leave the 3rd out).

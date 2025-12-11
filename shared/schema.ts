@@ -13,6 +13,7 @@ export const savedSessions = pgTable("saved_sessions", {
   thresholds: jsonb("thresholds"),
   shortlist: jsonb("shortlist"),
   chosenCompanyId: text("chosen_company_id"),
+  chosenCompanyIds: jsonb("chosen_company_ids").$type<string[]>().default([]),
   messages: jsonb("messages"),
   thinkingSteps: jsonb("thinking_steps"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -67,6 +68,7 @@ export type Phase =
   | "thresholds"
   | "shortlist"
   | "comparison"
+  | "dueDiligence"
   | "reportChosen";
 
 // Restrictions payload from frontend
@@ -328,7 +330,7 @@ export interface ConversationState {
   thresholds: Thresholds;
   subParamPreferences: SubParameterPreference[];
   shortlist: ShortlistedCompanyScore[];
-  chosenCompanyId?: string;
+  chosenCompanyIds: string[];
   reportTemplate: ReportTemplate;
 }
 
@@ -353,6 +355,7 @@ export const initialConversationState: ConversationState = {
   thresholds: defaultThresholds,
   subParamPreferences: [],
   shortlist: [],
+  chosenCompanyIds: [],
   reportTemplate: "growth",
 };
 
@@ -388,9 +391,11 @@ export interface NextResponse {
   state: ConversationState;
   assistantMessages: AssistantMessage[];
   thinkingSteps: ThinkingStep[];
+  reports?: CompanyReport[];
   uiHints?: {
     showRecommendations?: boolean;
     showReportForCompanyId?: string;
+    showReportsForCompanyIds?: string[];
   };
 }
 
@@ -510,6 +515,7 @@ export const phaseLabels: Record<Phase, string> = {
   thresholds: "Thresholds",
   shortlist: "Shortlist",
   comparison: "Review & Select",
+  dueDiligence: "Due Diligence",
   reportChosen: "Report",
 };
 
@@ -523,5 +529,6 @@ export const phaseOrder: Phase[] = [
   "thresholds",
   "shortlist",
   "comparison",
+  "dueDiligence",
   "reportChosen",
 ];
