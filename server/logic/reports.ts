@@ -1,4 +1,37 @@
-import type { CompanyReport } from "@shared/schema";
+import type { CompanyReport, ReportTemplate } from "@shared/schema";
+
+// Template-specific section ordering
+const templateSectionOrder: Record<ReportTemplate, string[]> = {
+  growth: ["executiveSummary", "financialAnalysis", "countryAnalysis", "operationalAndValueCreation", "exitFeasibility"],
+  buyout: ["executiveSummary", "financialAnalysis", "operationalAndValueCreation", "countryAnalysis", "exitFeasibility"],
+  venture: ["executiveSummary", "countryAnalysis", "exitFeasibility", "financialAnalysis", "operationalAndValueCreation"],
+};
+
+// Template-specific key focus areas for emphasis
+const templateFocusAreas: Record<ReportTemplate, { section: string; keywords: string[] }[]> = {
+  growth: [
+    { section: "executiveSummary", keywords: ["growth", "revenue", "expansion", "scalab"] },
+    { section: "financialAnalysis", keywords: ["growth", "revenue", "expansion", "scale"] },
+    { section: "operationalAndValueCreation", keywords: ["expand", "grow", "scale", "market"] },
+  ],
+  buyout: [
+    { section: "executiveSummary", keywords: ["earnings", "cash flow", "operational", "efficiency", "margin"] },
+    { section: "financialAnalysis", keywords: ["quality", "earnings", "retention", "margin", "cash"] },
+    { section: "operationalAndValueCreation", keywords: ["efficiency", "cost", "optimize", "operational", "margin"] },
+  ],
+  venture: [
+    { section: "executiveSummary", keywords: ["market", "opportunity", "differentiat", "competitive", "exit"] },
+    { section: "countryAnalysis", keywords: ["market", "opportunity", "ecosystem"] },
+    { section: "exitFeasibility", keywords: ["exit", "ipo", "acquisition", "strategic"] },
+  ],
+};
+
+// Template subtitles for header
+const templateSubtitles: Record<ReportTemplate, string> = {
+  growth: "Growth Equity Investment Memo",
+  buyout: "Buyout Investment Memo",
+  venture: "Venture Capital Investment Memo",
+};
 
 const countryAnalysisTable = [
   { parameter: "Market Size", india: "$3.2T GDP, 1.4B population", singapore: "$400B GDP, 5.8M population" },
@@ -9,17 +42,90 @@ const countryAnalysisTable = [
   { parameter: "Ease of Business", india: "Improving (63rd globally)", singapore: "World-leading (2nd globally)" },
 ];
 
-export function generateReport(companyId: string): CompanyReport | null {
+export interface TemplatedReport extends CompanyReport {
+  templateType: ReportTemplate;
+  templateSubtitle: string;
+  sectionOrder: string[];
+  emphasisItems: Map<string, number[]>;
+}
+
+function addEmphasisToItems(items: string[], keywords: string[]): { text: string; isKeyFocus: boolean }[] {
+  return items.map((item) => {
+    const lowerItem = item.toLowerCase();
+    const isKeyFocus = keywords.some((keyword) => lowerItem.includes(keyword.toLowerCase()));
+    return { text: item, isKeyFocus };
+  });
+}
+
+export function generateReport(companyId: string, templateType: ReportTemplate = "growth"): TemplatedReport | null {
+  let baseReport: CompanyReport | null = null;
+  
   switch (companyId) {
     case "mantla":
-      return generateMantlaReport();
+      baseReport = generateMantlaReport();
+      break;
     case "instaworks":
-      return generateInstaworksReport();
+      baseReport = generateInstaworksReport();
+      break;
     case "disprztech":
-      return generateDisprzReport();
+      baseReport = generateDisprzReport();
+      break;
     default:
       return null;
   }
+  
+  if (!baseReport) return null;
+  
+  const focusAreas = templateFocusAreas[templateType];
+  const emphasisItems = new Map<string, number[]>();
+  
+  focusAreas.forEach((focus) => {
+    if (focus.section === "executiveSummary") {
+      const indices: number[] = [];
+      baseReport!.executiveSummary.forEach((item, idx) => {
+        const lowerItem = item.toLowerCase();
+        if (focus.keywords.some((kw) => lowerItem.includes(kw.toLowerCase()))) {
+          indices.push(idx);
+        }
+      });
+      emphasisItems.set("executiveSummary", indices);
+    } else if (focus.section === "operationalAndValueCreation") {
+      const indices: number[] = [];
+      baseReport!.operationalAndValueCreation.forEach((item, idx) => {
+        const lowerItem = item.toLowerCase();
+        if (focus.keywords.some((kw) => lowerItem.includes(kw.toLowerCase()))) {
+          indices.push(idx);
+        }
+      });
+      emphasisItems.set("operationalAndValueCreation", indices);
+    } else if (focus.section === "exitFeasibility") {
+      const indices: number[] = [];
+      baseReport!.exitFeasibility.forEach((item, idx) => {
+        const lowerItem = item.toLowerCase();
+        if (focus.keywords.some((kw) => lowerItem.includes(kw.toLowerCase()))) {
+          indices.push(idx);
+        }
+      });
+      emphasisItems.set("exitFeasibility", indices);
+    } else if (focus.section === "countryAnalysis") {
+      const indices: number[] = [];
+      baseReport!.countryAnalysis.keyPoints.forEach((item, idx) => {
+        const lowerItem = item.toLowerCase();
+        if (focus.keywords.some((kw) => lowerItem.includes(kw.toLowerCase()))) {
+          indices.push(idx);
+        }
+      });
+      emphasisItems.set("countryAnalysisKeyPoints", indices);
+    }
+  });
+  
+  return {
+    ...baseReport,
+    templateType,
+    templateSubtitle: templateSubtitles[templateType],
+    sectionOrder: templateSectionOrder[templateType],
+    emphasisItems,
+  };
 }
 
 function generateMantlaReport(): CompanyReport {

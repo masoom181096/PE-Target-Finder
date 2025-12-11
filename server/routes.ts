@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { processMessage } from "./logic/stateMachine";
 import { generateReport } from "./logic/reports";
 import { nextRequestSchema, insertSavedSessionSchema } from "@shared/schema";
+import type { ReportTemplate } from "@shared/schema";
 import { storage } from "./storage";
 import { companies, getCompanyById } from "./data/companies";
 
@@ -35,13 +36,23 @@ export async function registerRoutes(
   app.get("/api/report/:companyId", (req: Request, res: Response) => {
     try {
       const { companyId } = req.params;
-      const report = generateReport(companyId);
+      const templateType = (req.query.templateType as ReportTemplate) || "growth";
+      
+      const validTemplates: ReportTemplate[] = ["growth", "buyout", "venture"];
+      const template = validTemplates.includes(templateType) ? templateType : "growth";
+      
+      const report = generateReport(companyId, template);
       
       if (!report) {
         return res.status(404).json({ error: "Report not found for company" });
       }
       
-      return res.json(report);
+      const serializedReport = {
+        ...report,
+        emphasisItems: Object.fromEntries(report.emphasisItems),
+      };
+      
+      return res.json(serializedReport);
     } catch (error) {
       console.error("Report API error:", error);
       return res.status(500).json({ error: "Internal server error" });

@@ -26,10 +26,11 @@ import type {
   FundMandate,
   ScoringWeights,
   Thresholds,
-  CompanyReport,
   SavedSession,
+  ReportTemplate,
 } from "@shared/schema";
 import { initialConversationState, phaseLabels } from "@shared/schema";
+import type { TemplatedReportData } from "@/components/report-view";
 
 function getSessionId(): string {
   let sessionId = localStorage.getItem("pe-finder-session");
@@ -45,7 +46,8 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [state, setState] = useState<ConversationState>(initialConversationState);
-  const [report, setReport] = useState<CompanyReport | null>(null);
+  const [report, setReport] = useState<TemplatedReportData | null>(null);
+  const [reportTemplate, setReportTemplate] = useState<ReportTemplate>("growth");
   const [mobileTab, setMobileTab] = useState<"chat" | "thinking">("chat");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>();
   const [companyScores, setCompanyScores] = useState<Array<{
@@ -83,14 +85,15 @@ export default function Home() {
       });
 
       if (data.uiHints?.showReportForCompanyId) {
-        fetchReport(data.uiHints.showReportForCompanyId);
+        setSelectedCompanyId(data.uiHints.showReportForCompanyId);
+        fetchReport(data.uiHints.showReportForCompanyId, reportTemplate);
       }
     },
   });
 
   const reportMutation = useMutation({
-    mutationFn: async (companyId: string) => {
-      const response = await apiRequest<CompanyReport>("GET", `/api/report/${companyId}`);
+    mutationFn: async ({ companyId, template }: { companyId: string; template: ReportTemplate }) => {
+      const response = await apiRequest<TemplatedReportData>("GET", `/api/report/${companyId}?templateType=${template}`);
       return response;
     },
     onSuccess: (data) => {
@@ -98,8 +101,16 @@ export default function Home() {
     },
   });
 
-  const fetchReport = (companyId: string) => {
-    reportMutation.mutate(companyId);
+  const fetchReport = (companyId: string, template: ReportTemplate = reportTemplate) => {
+    reportMutation.mutate({ companyId, template });
+  };
+
+  const handleTemplateChange = (template: ReportTemplate) => {
+    setReportTemplate(template);
+    setState((prev) => ({ ...prev, reportTemplate: template }));
+    if (selectedCompanyId) {
+      fetchReport(selectedCompanyId, template);
+    }
   };
 
   const initializeChat = useCallback(() => {
@@ -327,7 +338,13 @@ export default function Home() {
   if (report) {
     return (
       <div className="h-screen bg-background">
-        <ReportView report={report} onBack={handleBackFromReport} className="h-full" />
+        <ReportView 
+          report={report} 
+          onBack={handleBackFromReport} 
+          className="h-full"
+          selectedTemplate={reportTemplate}
+          onTemplateChange={handleTemplateChange}
+        />
       </div>
     );
   }

@@ -39,6 +39,21 @@ export type Phase =
   | "comparison"
   | "reportChosen";
 
+// Report template types
+export type ReportTemplate = "growth" | "buyout" | "venture";
+
+export const reportTemplateLabels: Record<ReportTemplate, string> = {
+  growth: "PE Growth",
+  buyout: "Buyout",
+  venture: "Venture",
+};
+
+export const reportTemplateDescriptions: Record<ReportTemplate, string> = {
+  growth: "Focus on revenue growth, market expansion, and scalability",
+  buyout: "Focus on quality of earnings, operational improvements, and cash flow",
+  venture: "Focus on market opportunity, competitive differentiation, and exit potential",
+};
+
 // Fund mandate configuration
 export interface FundMandate {
   fundType?: string;
@@ -147,6 +162,7 @@ export interface ConversationState {
   thresholds: Thresholds;
   shortlist: ShortlistedCompanyScore[];
   chosenCompanyId?: string;
+  reportTemplate: ReportTemplate;
 }
 
 // Initial conversation state
@@ -156,6 +172,7 @@ export const initialConversationState: ConversationState = {
   scoringWeights: defaultScoringWeights,
   thresholds: defaultThresholds,
   shortlist: [],
+  reportTemplate: "growth",
 };
 
 // API Request/Response types

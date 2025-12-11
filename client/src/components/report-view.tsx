@@ -12,16 +12,33 @@ import {
   DollarSign,
   ArrowLeft,
   Download,
+  ChevronDown,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { jsPDF } from "jspdf";
-import type { CompanyReport } from "@shared/schema";
+import type { CompanyReport, ReportTemplate } from "@shared/schema";
+import { reportTemplateLabels, reportTemplateDescriptions } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+
+export interface TemplatedReportData extends CompanyReport {
+  templateType: ReportTemplate;
+  templateSubtitle: string;
+  sectionOrder: string[];
+  emphasisItems: Record<string, number[]>;
+}
 
 function generatePDF(report: CompanyReport): { success: boolean; error?: string } {
   try {
@@ -258,9 +275,11 @@ function generatePDF(report: CompanyReport): { success: boolean; error?: string 
 }
 
 interface ReportViewProps {
-  report: CompanyReport;
+  report: TemplatedReportData;
   onBack?: () => void;
   className?: string;
+  selectedTemplate: ReportTemplate;
+  onTemplateChange: (template: ReportTemplate) => void;
 }
 
 const sections = [
@@ -271,10 +290,58 @@ const sections = [
   { id: "exit-feasibility", label: "Exit Feasibility", icon: DollarSign },
 ];
 
-export function ReportView({ report, onBack, className }: ReportViewProps) {
+export function ReportView({ report, onBack, className, selectedTemplate, onTemplateChange }: ReportViewProps) {
   const [activeSection, setActiveSection] = useState("executive-summary");
   const contentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const sectionComponents: Record<string, () => JSX.Element> = {
+    executiveSummary: () => (
+      <section id="executive-summary" key="executive-summary">
+        <ExecutiveSummarySection 
+          summary={report.executiveSummary} 
+          emphasisIndices={report.emphasisItems?.executiveSummary || []}
+        />
+      </section>
+    ),
+    countryAnalysis: () => (
+      <section id="country-analysis" key="country-analysis">
+        <CountryAnalysisSection 
+          analysis={report.countryAnalysis}
+          emphasisIndices={report.emphasisItems?.countryAnalysisKeyPoints || []}
+        />
+      </section>
+    ),
+    financialAnalysis: () => (
+      <section id="financial-analysis" key="financial-analysis">
+        <FinancialAnalysisSection analysis={report.financialAnalysis} />
+      </section>
+    ),
+    operationalAndValueCreation: () => (
+      <section id="operational" key="operational">
+        <OperationalSection 
+          points={report.operationalAndValueCreation}
+          emphasisIndices={report.emphasisItems?.operationalAndValueCreation || []}
+        />
+      </section>
+    ),
+    exitFeasibility: () => (
+      <section id="exit-feasibility" key="exit-feasibility">
+        <ExitFeasibilitySection 
+          points={report.exitFeasibility}
+          emphasisIndices={report.emphasisItems?.exitFeasibility || []}
+        />
+      </section>
+    ),
+  };
+
+  const orderedSections = report.sectionOrder || [
+    "executiveSummary",
+    "countryAnalysis",
+    "financialAnalysis",
+    "operationalAndValueCreation",
+    "exitFeasibility",
+  ];
 
   const handleExportPdf = () => {
     const result = generatePDF(report);
@@ -361,34 +428,33 @@ export function ReportView({ report, onBack, className }: ReportViewProps) {
 
       <ScrollArea ref={contentRef} className="flex-1">
         <div className="max-w-4xl mx-auto p-6 lg:p-8 space-y-8">
-          <ReportHeader report={report} onBack={onBack} onExportPdf={handleExportPdf} />
+          <ReportHeader 
+            report={report} 
+            onBack={onBack} 
+            onExportPdf={handleExportPdf}
+            selectedTemplate={selectedTemplate}
+            onTemplateChange={onTemplateChange}
+          />
           
-          <section id="executive-summary">
-            <ExecutiveSummarySection summary={report.executiveSummary} />
-          </section>
-
-          <section id="country-analysis">
-            <CountryAnalysisSection analysis={report.countryAnalysis} />
-          </section>
-
-          <section id="financial-analysis">
-            <FinancialAnalysisSection analysis={report.financialAnalysis} />
-          </section>
-
-          <section id="operational">
-            <OperationalSection points={report.operationalAndValueCreation} />
-          </section>
-
-          <section id="exit-feasibility">
-            <ExitFeasibilitySection points={report.exitFeasibility} />
-          </section>
+          {orderedSections.map((sectionKey) => {
+            const Component = sectionComponents[sectionKey];
+            return Component ? Component() : null;
+          })}
         </div>
       </ScrollArea>
     </div>
   );
 }
 
-function ReportHeader({ report, onBack, onExportPdf }: { report: CompanyReport; onBack?: () => void; onExportPdf: () => void }) {
+interface ReportHeaderProps {
+  report: TemplatedReportData;
+  onBack?: () => void;
+  onExportPdf: () => void;
+  selectedTemplate: ReportTemplate;
+  onTemplateChange: (template: ReportTemplate) => void;
+}
+
+function ReportHeader({ report, onBack, onExportPdf, selectedTemplate, onTemplateChange }: ReportHeaderProps) {
   return (
     <div className="space-y-4" data-testid="report-header">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -399,14 +465,34 @@ function ReportHeader({ report, onBack, onExportPdf }: { report: CompanyReport; 
           </Button>
         )}
         <div className="flex-1" />
-        <Button onClick={onExportPdf} data-testid="button-export-pdf">
-          <Download className="mr-2 h-4 w-4" />
-          Export PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={selectedTemplate} onValueChange={(v) => onTemplateChange(v as ReportTemplate)}>
+            <SelectTrigger className="w-[180px]" data-testid="select-report-template">
+              <SelectValue placeholder="Select template" />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(reportTemplateLabels) as ReportTemplate[]).map((template) => (
+                <SelectItem key={template} value={template} data-testid={`template-option-${template}`}>
+                  <div className="flex items-center gap-2">
+                    <span>{reportTemplateLabels[template]}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={onExportPdf} data-testid="button-export-pdf">
+            <Download className="mr-2 h-4 w-4" />
+            Export PDF
+          </Button>
+        </div>
       </div>
       
       <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-lg p-6 border border-primary/20">
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-2">
+          <Badge variant="outline" className="text-xs">
+            {report.templateSubtitle || "Investment Memo"}
+          </Badge>
+          <span className="text-muted-foreground/50">|</span>
           <span className="flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
             {report.header.date}
@@ -423,9 +509,13 @@ function ReportHeader({ report, onBack, onExportPdf }: { report: CompanyReport; 
           </span>
         </div>
         
-        <h1 className="text-3xl font-bold text-foreground mb-4">
+        <h1 className="text-3xl font-bold text-foreground mb-2">
           {report.header.companyName}
         </h1>
+        
+        <p className="text-sm text-muted-foreground mb-4">
+          {reportTemplateDescriptions[selectedTemplate]}
+        </p>
         
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -443,7 +533,7 @@ function ReportHeader({ report, onBack, onExportPdf }: { report: CompanyReport; 
   );
 }
 
-function ExecutiveSummarySection({ summary }: { summary: string[] }) {
+function ExecutiveSummarySection({ summary, emphasisIndices = [] }: { summary: string[]; emphasisIndices?: number[] }) {
   return (
     <Card data-testid="section-executive-summary">
       <CardHeader className="pb-4">
@@ -454,21 +544,37 @@ function ExecutiveSummarySection({ summary }: { summary: string[] }) {
       </CardHeader>
       <CardContent>
         <ul className="space-y-3">
-          {summary.map((point, idx) => (
-            <li key={idx} className="flex items-start gap-3 text-base leading-relaxed">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center mt-0.5">
-                {idx + 1}
-              </span>
-              <span className="text-foreground">{point}</span>
-            </li>
-          ))}
+          {summary.map((point, idx) => {
+            const isEmphasis = emphasisIndices.includes(idx);
+            return (
+              <li key={idx} className={cn(
+                "flex items-start gap-3 text-base leading-relaxed",
+                isEmphasis && "bg-primary/5 rounded-lg p-3 -mx-3"
+              )}>
+                <span className={cn(
+                  "flex-shrink-0 w-6 h-6 rounded-full text-xs font-medium flex items-center justify-center mt-0.5",
+                  isEmphasis ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+                )}>
+                  {isEmphasis ? <Star className="h-3 w-3" /> : idx + 1}
+                </span>
+                <div className="flex-1">
+                  {isEmphasis && (
+                    <Badge variant="outline" className="text-xs mb-1 mr-2">
+                      Key Focus
+                    </Badge>
+                  )}
+                  <span className="text-foreground">{point}</span>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </CardContent>
     </Card>
   );
 }
 
-function CountryAnalysisSection({ analysis }: { analysis: CompanyReport["countryAnalysis"] }) {
+function CountryAnalysisSection({ analysis, emphasisIndices = [] }: { analysis: CompanyReport["countryAnalysis"]; emphasisIndices?: number[] }) {
   return (
     <Card data-testid="section-country-analysis">
       <CardHeader className="pb-4">
@@ -504,12 +610,29 @@ function CountryAnalysisSection({ analysis }: { analysis: CompanyReport["country
         <div>
           <h4 className="font-semibold text-foreground mb-3">Key Insights</h4>
           <ul className="space-y-2">
-            {analysis.keyPoints.map((point, idx) => (
-              <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
-                <TrendingUp className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                {point}
-              </li>
-            ))}
+            {analysis.keyPoints.map((point, idx) => {
+              const isEmphasis = emphasisIndices.includes(idx);
+              return (
+                <li key={idx} className={cn(
+                  "flex items-start gap-2 text-sm",
+                  isEmphasis ? "text-foreground bg-primary/5 rounded-lg p-2 -mx-2" : "text-muted-foreground"
+                )}>
+                  {isEmphasis ? (
+                    <Star className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <TrendingUp className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    {isEmphasis && (
+                      <Badge variant="outline" className="text-xs mb-1 mr-2">
+                        Key Focus
+                      </Badge>
+                    )}
+                    {point}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </CardContent>
@@ -557,7 +680,7 @@ function FinancialAnalysisSection({ analysis }: { analysis: CompanyReport["finan
   );
 }
 
-function OperationalSection({ points }: { points: string[] }) {
+function OperationalSection({ points, emphasisIndices = [] }: { points: string[]; emphasisIndices?: number[] }) {
   return (
     <Card data-testid="section-operational">
       <CardHeader className="pb-4">
@@ -568,19 +691,36 @@ function OperationalSection({ points }: { points: string[] }) {
       </CardHeader>
       <CardContent>
         <ul className="space-y-3">
-          {points.map((point, idx) => (
-            <li key={idx} className="flex items-start gap-3 text-sm text-muted-foreground">
-              <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-2" />
-              {point}
-            </li>
-          ))}
+          {points.map((point, idx) => {
+            const isEmphasis = emphasisIndices.includes(idx);
+            return (
+              <li key={idx} className={cn(
+                "flex items-start gap-3 text-sm",
+                isEmphasis ? "text-foreground bg-primary/5 rounded-lg p-3 -mx-3" : "text-muted-foreground"
+              )}>
+                {isEmphasis ? (
+                  <Star className="flex-shrink-0 h-4 w-4 text-primary mt-0.5" />
+                ) : (
+                  <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-2" />
+                )}
+                <div>
+                  {isEmphasis && (
+                    <Badge variant="outline" className="text-xs mb-1 mr-2">
+                      Key Focus
+                    </Badge>
+                  )}
+                  {point}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </CardContent>
     </Card>
   );
 }
 
-function ExitFeasibilitySection({ points }: { points: string[] }) {
+function ExitFeasibilitySection({ points, emphasisIndices = [] }: { points: string[]; emphasisIndices?: number[] }) {
   return (
     <Card data-testid="section-exit-feasibility">
       <CardHeader className="pb-4">
@@ -591,12 +731,29 @@ function ExitFeasibilitySection({ points }: { points: string[] }) {
       </CardHeader>
       <CardContent>
         <ul className="space-y-3">
-          {points.map((point, idx) => (
-            <li key={idx} className="flex items-start gap-3 text-sm text-muted-foreground">
-              <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-2" />
-              {point}
-            </li>
-          ))}
+          {points.map((point, idx) => {
+            const isEmphasis = emphasisIndices.includes(idx);
+            return (
+              <li key={idx} className={cn(
+                "flex items-start gap-3 text-sm",
+                isEmphasis ? "text-foreground bg-primary/5 rounded-lg p-3 -mx-3" : "text-muted-foreground"
+              )}>
+                {isEmphasis ? (
+                  <Star className="flex-shrink-0 h-4 w-4 text-primary mt-0.5" />
+                ) : (
+                  <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-2" />
+                )}
+                <div>
+                  {isEmphasis && (
+                    <Badge variant="outline" className="text-xs mb-1 mr-2">
+                      Key Focus
+                    </Badge>
+                  )}
+                  {point}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </CardContent>
     </Card>
