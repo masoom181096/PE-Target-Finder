@@ -54,8 +54,6 @@ const GEO_FOCUS_OPTIONS = [
   "Asia Pacific",
   "Western Europe",
   "North America",
-  "India",
-  "Singapore",
   "Southeast Asia",
   "Other",
 ];
@@ -140,7 +138,7 @@ export function FundMandateForm({ onSubmit, isLoading }: FundMandateFormProps) {
   const [mandate, setMandate] = useState<FundMandate>({
     sectorFocus: [],
     investmentStage: [],
-    geographicFocus: [{ value: "India" }, { value: "Singapore" }],
+    geographicFocus: [],
     excludedSectors: [],
     valueCreationApproach: [],
     exitPreferences: [],
