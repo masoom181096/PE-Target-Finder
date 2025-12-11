@@ -61,12 +61,121 @@ export interface TicketSize {
 export type Phase =
   | "welcome"
   | "fundMandate"
+  | "restrictions"
   | "countryScreening"
   | "weights"
   | "thresholds"
   | "shortlist"
   | "comparison"
   | "reportChosen";
+
+// Restrictions for macro/micro/fund constraints
+export interface Restrictions {
+  avoidSanctionedCountries?: boolean;
+  notes?: string;
+}
+
+export const defaultRestrictions: Restrictions = {};
+
+// Sub-parameter types for detailed scoring
+export type TopLevelParamId =
+  | "qualityOfEarnings"
+  | "companyFinancial"
+  | "industryAttractiveness"
+  | "competitivePositioning"
+  | "managementGovernance"
+  | "operationalEfficiency"
+  | "customerMarket"
+  | "productStrength"
+  | "exitFeasibility"
+  | "scalabilityPotential";
+
+export type SubParamType = "numeric" | "qualitative";
+export type Direction = "higherIsBetter" | "lowerIsBetter" | "none";
+
+export interface SubParameterDefinition {
+  id: string;
+  label: string;
+  category: TopLevelParamId;
+  type: SubParamType;
+  direction: Direction;
+}
+
+export const SUB_PARAMETERS: SubParameterDefinition[] = [
+  // Quality of Earnings & Financial Health
+  { id: "earningsQuality", label: "Earnings quality (recurring vs. one-time)", category: "qualityOfEarnings", type: "qualitative", direction: "higherIsBetter" },
+  { id: "debtLeverage", label: "Debt levels & leverage ratios", category: "qualityOfEarnings", type: "numeric", direction: "lowerIsBetter" },
+  { id: "profitabilityVsPeers", label: "Profitability vs. peers", category: "qualityOfEarnings", type: "numeric", direction: "higherIsBetter" },
+  { id: "accountingPolicies", label: "Accounting policies and redflags", category: "qualityOfEarnings", type: "qualitative", direction: "none" },
+  { id: "workingCapitalCycle", label: "Working capital cycle", category: "qualityOfEarnings", type: "numeric", direction: "lowerIsBetter" },
+  { id: "capexIntensity", label: "Capital expenditure", category: "qualityOfEarnings", type: "numeric", direction: "lowerIsBetter" },
+  { id: "cacLtv", label: "Customer Acquisition Cost (CAC) & Lifetime Value (LTV)", category: "qualityOfEarnings", type: "numeric", direction: "higherIsBetter" },
+  // Company Financial Performance
+  { id: "revenueGrowth", label: "Revenue growth (historical + forecast)", category: "companyFinancial", type: "numeric", direction: "higherIsBetter" },
+  { id: "margins", label: "Margins (Gross, EBITDA, Net)", category: "companyFinancial", type: "numeric", direction: "higherIsBetter" },
+  { id: "cashFlowStability", label: "Cash flow stability", category: "companyFinancial", type: "qualitative", direction: "higherIsBetter" },
+  { id: "unitEconomics", label: "Unit economics", category: "companyFinancial", type: "qualitative", direction: "higherIsBetter" },
+  // Industry Attractiveness
+  { id: "marketSize", label: "Market size", category: "industryAttractiveness", type: "numeric", direction: "higherIsBetter" },
+  { id: "industryGrowth", label: "Growth rate", category: "industryAttractiveness", type: "numeric", direction: "higherIsBetter" },
+  { id: "competitiveIntensity", label: "Competitive intensity & fragmentation", category: "industryAttractiveness", type: "qualitative", direction: "lowerIsBetter" },
+  { id: "regulationBarriers", label: "Regulation & entry barriers", category: "industryAttractiveness", type: "qualitative", direction: "higherIsBetter" },
+  { id: "cyclicality", label: "Cyclicality and macro resilience", category: "industryAttractiveness", type: "qualitative", direction: "higherIsBetter" },
+  { id: "innovationPace", label: "Innovation pace and technological disruption", category: "industryAttractiveness", type: "qualitative", direction: "higherIsBetter" },
+  // Competitive Positioning
+  { id: "marketShare", label: "Market share", category: "competitivePositioning", type: "numeric", direction: "higherIsBetter" },
+  { id: "uvp", label: "Unique value proposition", category: "competitivePositioning", type: "qualitative", direction: "higherIsBetter" },
+  { id: "pricingPower", label: "Pricing power", category: "competitivePositioning", type: "qualitative", direction: "higherIsBetter" },
+  { id: "brandStrength", label: "Brand strength", category: "competitivePositioning", type: "qualitative", direction: "higherIsBetter" },
+  { id: "barriersToEntry", label: "Barriers to entry", category: "competitivePositioning", type: "qualitative", direction: "higherIsBetter" },
+  { id: "customerStickiness", label: "Customer stickiness", category: "competitivePositioning", type: "qualitative", direction: "higherIsBetter" },
+  // Management Team & Governance
+  { id: "leadershipCredibility", label: "Leadership credibility & track record", category: "managementGovernance", type: "qualitative", direction: "higherIsBetter" },
+  { id: "executionCapability", label: "Execution capability", category: "managementGovernance", type: "qualitative", direction: "higherIsBetter" },
+  { id: "companyCulture", label: "Company culture", category: "managementGovernance", type: "qualitative", direction: "higherIsBetter" },
+  { id: "governanceQuality", label: "Governance quality & transparency", category: "managementGovernance", type: "qualitative", direction: "higherIsBetter" },
+  // Operational Efficiency
+  { id: "costStructure", label: "Cost structure and optimization levers", category: "operationalEfficiency", type: "qualitative", direction: "higherIsBetter" },
+  { id: "processMaturity", label: "Process maturity", category: "operationalEfficiency", type: "qualitative", direction: "higherIsBetter" },
+  { id: "supplyChainEfficiency", label: "Supply chain and procurement efficiency", category: "operationalEfficiency", type: "qualitative", direction: "higherIsBetter" },
+  { id: "automationPotential", label: "Automation potential", category: "operationalEfficiency", type: "qualitative", direction: "higherIsBetter" },
+  { id: "itReadiness", label: "IT systems and digital readiness", category: "operationalEfficiency", type: "qualitative", direction: "higherIsBetter" },
+  // Customer & Market Dynamics
+  { id: "customerSegmentation", label: "Customer segmentation", category: "customerMarket", type: "qualitative", direction: "higherIsBetter" },
+  { id: "customerSatisfaction", label: "Customer satisfaction (NPS, CSAT)", category: "customerMarket", type: "numeric", direction: "higherIsBetter" },
+  { id: "churnRate", label: "Churn rate", category: "customerMarket", type: "numeric", direction: "lowerIsBetter" },
+  { id: "demandPatterns", label: "Demand patterns", category: "customerMarket", type: "qualitative", direction: "higherIsBetter" },
+  { id: "marketShareShifts", label: "Market share shifts", category: "customerMarket", type: "qualitative", direction: "higherIsBetter" },
+  // Product / Service Strength
+  { id: "productDifferentiation", label: "Product differentiation", category: "productStrength", type: "qualitative", direction: "higherIsBetter" },
+  { id: "ipProtection", label: "IP protection", category: "productStrength", type: "qualitative", direction: "higherIsBetter" },
+  { id: "techStackQuality", label: "Technology stack quality", category: "productStrength", type: "qualitative", direction: "higherIsBetter" },
+  { id: "rdCapabilities", label: "R&D capabilities", category: "productStrength", type: "qualitative", direction: "higherIsBetter" },
+  { id: "obsolescenceRisk", label: "Obsolescence risk", category: "productStrength", type: "qualitative", direction: "lowerIsBetter" },
+  // Exit Feasibility
+  { id: "potentialBuyers", label: "Potential buyers (strategics, other PE funds)", category: "exitFeasibility", type: "qualitative", direction: "higherIsBetter" },
+  { id: "ipoReadiness", label: "IPO readiness", category: "exitFeasibility", type: "qualitative", direction: "higherIsBetter" },
+  { id: "valuationGrowthPotential", label: "Valuation growth potential", category: "exitFeasibility", type: "qualitative", direction: "higherIsBetter" },
+  { id: "comparableMultiples", label: "Comparable transaction multiples", category: "exitFeasibility", type: "qualitative", direction: "higherIsBetter" },
+  { id: "industryMaTrends", label: "Industry M&A trends", category: "exitFeasibility", type: "qualitative", direction: "higherIsBetter" },
+  { id: "timeToExit", label: "Time to exit", category: "exitFeasibility", type: "numeric", direction: "lowerIsBetter" },
+  // Scalability Potential
+  { id: "businessModelScalability", label: "Business model scalability", category: "scalabilityPotential", type: "qualitative", direction: "higherIsBetter" },
+  { id: "operationalScalability", label: "Operational scalability", category: "scalabilityPotential", type: "qualitative", direction: "higherIsBetter" },
+  { id: "productReplicability", label: "Product replicability", category: "scalabilityPotential", type: "qualitative", direction: "higherIsBetter" },
+  { id: "geoExpansionCapacity", label: "Geographic expansion capacity", category: "scalabilityPotential", type: "qualitative", direction: "higherIsBetter" },
+  { id: "crossSellUpsell", label: "Cross-selling & upselling opportunities", category: "scalabilityPotential", type: "qualitative", direction: "higherIsBetter" },
+];
+
+// Sub-parameter preference levels
+export type PreferenceLevel = "auto" | "hardFilter" | "high" | "medium" | "low" | "ignore";
+
+export interface SubParameterPreference {
+  subParamId: string;
+  preference: PreferenceLevel;
+  minValue?: number;
+  maxValue?: number;
+}
 
 // Report template types
 export type ReportTemplate = "growth" | "buyout" | "venture";
@@ -207,8 +316,10 @@ export interface ShortlistedCompanyScore {
 export interface ConversationState {
   phase: Phase;
   fundMandate: FundMandate;
+  restrictions: Restrictions;
   scoringWeights: ScoringWeights;
   thresholds: Thresholds;
+  subParamPreferences: SubParameterPreference[];
   shortlist: ShortlistedCompanyScore[];
   chosenCompanyId?: string;
   reportTemplate: ReportTemplate;
@@ -230,8 +341,10 @@ export const defaultFundMandate: FundMandate = {
 export const initialConversationState: ConversationState = {
   phase: "welcome",
   fundMandate: defaultFundMandate,
+  restrictions: defaultRestrictions,
   scoringWeights: defaultScoringWeights,
   thresholds: defaultThresholds,
+  subParamPreferences: [],
   shortlist: [],
   reportTemplate: "growth",
 };
@@ -306,7 +419,7 @@ export const fundMandateSchema = z.object({
   // Categorical fields with OptionSelection
   fundType: optionSelectionSchema.optional(),
   sectorFocus: z.array(optionSelectionSchema).default([]),
-  investmentStage: optionSelectionSchema.optional(),
+  investmentStage: z.array(optionSelectionSchema).default([]),
   geographicFocus: z.array(optionSelectionSchema).default([]),
   excludedSectors: z.array(optionSelectionSchema).default([]),
   valueCreationApproach: z.array(optionSelectionSchema).default([]),
@@ -384,6 +497,7 @@ export const nextRequestSchema = z.object({
 export const phaseLabels: Record<Phase, string> = {
   welcome: "Welcome",
   fundMandate: "Fund Mandate",
+  restrictions: "Restrictions",
   countryScreening: "Country Screening",
   weights: "Scoring Weights",
   thresholds: "Thresholds",
@@ -396,6 +510,7 @@ export const phaseLabels: Record<Phase, string> = {
 export const phaseOrder: Phase[] = [
   "welcome",
   "fundMandate",
+  "restrictions",
   "countryScreening",
   "weights",
   "thresholds",
