@@ -140,8 +140,8 @@ export function SessionManager({ sessionId, currentState, messages, thinkingStep
             </div>
             <div className="text-sm text-muted-foreground">
               <p>Current phase: <span className="font-medium">{phaseLabels[currentState.phase]}</span></p>
-              {currentState.fundMandate?.fundType && (
-                <p>Fund type: <span className="font-medium">{currentState.fundMandate.fundType}</span></p>
+              {currentState.fundMandate?.fundType?.value && (
+                <p>Fund type: <span className="font-medium">{currentState.fundMandate.fundType.value}</span></p>
               )}
             </div>
           </div>
