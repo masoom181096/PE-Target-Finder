@@ -1,38 +1,59 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { 
+  savedSessions, 
+  type InsertSavedSession, 
+  type SavedSession
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  saveSession(data: InsertSavedSession): Promise<SavedSession>;
+  getSession(sessionId: string): Promise<SavedSession | undefined>;
+  listSessions(): Promise<SavedSession[]>;
+  deleteSession(sessionId: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async saveSession(data: InsertSavedSession): Promise<SavedSession> {
+    const existing = await this.getSession(data.sessionId);
+    if (existing) {
+      const [updated] = await db
+        .update(savedSessions)
+        .set({
+          name: data.name,
+          phase: data.phase,
+          fundMandate: data.fundMandate,
+          scoringWeights: data.scoringWeights,
+          thresholds: data.thresholds,
+          shortlist: data.shortlist,
+          chosenCompanyId: data.chosenCompanyId,
+          messages: data.messages,
+          thinkingSteps: data.thinkingSteps,
+          updatedAt: new Date(),
+        })
+        .where(eq(savedSessions.sessionId, data.sessionId))
+        .returning();
+      return updated;
+    }
+    const [session] = await db.insert(savedSessions).values(data).returning();
+    return session;
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getSession(sessionId: string): Promise<SavedSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(savedSessions)
+      .where(eq(savedSessions.sessionId, sessionId));
+    return session || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async listSessions(): Promise<SavedSession[]> {
+    return db.select().from(savedSessions).orderBy(desc(savedSessions.updatedAt));
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async deleteSession(sessionId: string): Promise<void> {
+    await db.delete(savedSessions).where(eq(savedSessions.sessionId, sessionId));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

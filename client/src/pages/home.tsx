@@ -12,6 +12,7 @@ import { ShortlistCard } from "@/components/shortlist-card";
 import { RecommendationsTable } from "@/components/recommendations-table";
 import { ReportView } from "@/components/report-view";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SessionManager } from "@/components/session-manager";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Target, MessageSquare, Brain, RotateCcw } from "lucide-react";
@@ -25,8 +26,9 @@ import type {
   ScoringWeights,
   Thresholds,
   CompanyReport,
+  SavedSession,
 } from "@shared/schema";
-import { initialConversationState } from "@shared/schema";
+import { initialConversationState, phaseLabels } from "@shared/schema";
 
 function getSessionId(): string {
   let sessionId = localStorage.getItem("pe-finder-session");
@@ -166,6 +168,34 @@ export default function Home() {
     setReport(null);
   };
 
+  const handleLoadSession = (session: SavedSession) => {
+    const loadedState: ConversationState = {
+      phase: session.phase as ConversationState["phase"],
+      fundMandate: (session.fundMandate as FundMandate) || {},
+      scoringWeights: (session.scoringWeights as ScoringWeights) || initialConversationState.scoringWeights,
+      thresholds: (session.thresholds as Thresholds) || initialConversationState.thresholds,
+      shortlist: (session.shortlist as ConversationState["shortlist"]) || [],
+      chosenCompanyId: session.chosenCompanyId || undefined,
+    };
+    setState(loadedState);
+    localStorage.setItem("pe-finder-session", session.sessionId);
+    
+    const savedMessages = (session.messages as ChatMessage[]) || [];
+    const savedThinkingSteps = (session.thinkingSteps as ThinkingStep[]) || [];
+    
+    if (savedMessages.length > 0) {
+      setMessages(savedMessages);
+    } else {
+      setMessages([{ role: "assistant", text: `Session "${session.name}" loaded. You're at the ${phaseLabels[loadedState.phase]} phase. Continue from where you left off.` }]);
+    }
+    
+    if (savedThinkingSteps.length > 0) {
+      setThinkingSteps(savedThinkingSteps);
+    } else {
+      setThinkingSteps([{ id: crypto.randomUUID(), phase: loadedState.phase, text: `Restored session: ${session.name}` }]);
+    }
+  };
+
   const isProcessing = chatMutation.isPending || reportMutation.isPending;
   const currentPhase = state?.phase ?? "welcome";
 
@@ -255,9 +285,16 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
+          <SessionManager
+            sessionId={sessionId}
+            currentState={state}
+            messages={messages}
+            thinkingSteps={thinkingSteps}
+            onLoadSession={handleLoadSession}
+          />
           <Button variant="ghost" size="sm" onClick={handleNewSession} data-testid="button-new-session">
             <RotateCcw className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">New Session</span>
+            <span className="hidden sm:inline">New</span>
           </Button>
           <ThemeToggle />
         </div>

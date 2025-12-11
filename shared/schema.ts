@@ -1,4 +1,32 @@
 import { z } from "zod";
+import { pgTable, text, timestamp, jsonb, serial } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+
+// Database schema for saved sessions
+export const savedSessions = pgTable("saved_sessions", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull().unique(),
+  name: text("name").notNull(),
+  phase: text("phase").notNull(),
+  fundMandate: jsonb("fund_mandate"),
+  scoringWeights: jsonb("scoring_weights"),
+  thresholds: jsonb("thresholds"),
+  shortlist: jsonb("shortlist"),
+  chosenCompanyId: text("chosen_company_id"),
+  messages: jsonb("messages"),
+  thinkingSteps: jsonb("thinking_steps"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertSavedSessionSchema = createInsertSchema(savedSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSavedSession = z.infer<typeof insertSavedSessionSchema>;
+export type SavedSession = typeof savedSessions.$inferSelect;
 
 // Phase types for the state machine
 export type Phase =
