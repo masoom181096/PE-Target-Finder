@@ -8,6 +8,7 @@ import type {
   FundMandate,
   ScoringWeights,
   Thresholds,
+  RestrictionsPayload,
 } from "@shared/schema";
 import { initialConversationState, defaultScoringWeights, defaultThresholds } from "@shared/schema";
 import { scoreAndRankCompanies } from "./scoring";
@@ -100,24 +101,42 @@ export function processFundMandate(sessionId: string, mandate: FundMandate): Nex
   };
 }
 
-export function processRestrictions(sessionId: string, userMessage?: string): NextResponse {
+export function processRestrictions(sessionId: string, payload?: RestrictionsPayload, userMessage?: string): NextResponse {
   const state = getOrCreateSession(sessionId);
   
-  // Parse user input for restrictions - skip storing "no", "continue", or very short responses
-  const lowerMsg = userMessage?.toLowerCase().trim() || "";
-  const skipKeywords = ["no", "continue", "proceed", "ok", "okay", "yes", "next", "skip"];
-  const shouldSkip = skipKeywords.includes(lowerMsg) || lowerMsg.length < 3;
-  
-  if (!shouldSkip && userMessage) {
-    if (lowerMsg.includes("sanctioned")) {
-      state.restrictions = {
-        avoidSanctionedCountries: true,
-        notes: userMessage,
-      };
+  // Handle structured payload from form
+  if (payload) {
+    if (payload.mode === "auto") {
+      state.restrictions = { mode: "auto" };
     } else {
+      const notes = payload.notes || "";
       state.restrictions = {
-        notes: userMessage,
+        mode: "manual",
+        notes,
+        avoidSanctionedCountries: notes.toLowerCase().includes("sanction"),
       };
+    }
+  } else if (userMessage) {
+    // Legacy: Parse user input for restrictions - skip storing "no", "continue", or very short responses
+    const lowerMsg = userMessage.toLowerCase().trim();
+    const skipKeywords = ["no", "continue", "proceed", "ok", "okay", "yes", "next", "skip"];
+    const shouldSkip = skipKeywords.includes(lowerMsg) || lowerMsg.length < 3;
+    
+    if (!shouldSkip) {
+      if (lowerMsg.includes("sanctioned")) {
+        state.restrictions = {
+          mode: "manual",
+          avoidSanctionedCountries: true,
+          notes: userMessage,
+        };
+      } else {
+        state.restrictions = {
+          mode: "manual",
+          notes: userMessage,
+        };
+      }
+    } else {
+      state.restrictions = { mode: "auto" };
     }
   }
   
@@ -293,8 +312,8 @@ export function processMessage(
   sessionId: string,
   userMessage?: string,
   formData?: {
-    type: "fundMandate" | "weights" | "thresholds" | "chooseCompany";
-    data: FundMandate | ScoringWeights | Thresholds | { companyId: string };
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany";
+    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string };
   }
 ): NextResponse {
   const state = getOrCreateSession(sessionId);
@@ -307,6 +326,8 @@ export function processMessage(
     switch (formData.type) {
       case "fundMandate":
         return processFundMandate(sessionId, formData.data as FundMandate);
+      case "restrictions":
+        return processRestrictions(sessionId, formData.data as RestrictionsPayload, userMessage);
       case "weights":
         return processWeights(sessionId, formData.data as ScoringWeights);
       case "thresholds":
@@ -317,7 +338,7 @@ export function processMessage(
   }
 
   if (state.phase === "restrictions") {
-    return processRestrictions(sessionId, userMessage);
+    return processRestrictions(sessionId, undefined, userMessage);
   }
 
   if (state.phase === "countryScreening" && userMessage?.toLowerCase().includes("continue")) {

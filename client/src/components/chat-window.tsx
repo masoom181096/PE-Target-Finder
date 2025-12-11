@@ -14,6 +14,7 @@ interface ChatWindowProps {
   inputPlaceholder?: string;
   className?: string;
   children?: React.ReactNode;
+  aboveInputPanel?: React.ReactNode;
 }
 
 export function ChatWindow({
@@ -24,6 +25,7 @@ export function ChatWindow({
   inputPlaceholder = "Type a message...",
   className,
   children,
+  aboveInputPanel,
 }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -79,6 +81,14 @@ export function ChatWindow({
           {children}
         </div>
       </ScrollArea>
+
+      {aboveInputPanel && (
+        <div className="px-4 py-3 border-t border-border bg-muted/30">
+          <div className="max-w-3xl mx-auto">
+            {aboveInputPanel}
+          </div>
+        </div>
+      )}
 
       {onSendMessage && (
         <div className="sticky bottom-0 p-4 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

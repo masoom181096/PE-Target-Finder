@@ -1,0 +1,98 @@
+1. Design: how this step should behave
+For the Restrictions phase:
+You always see the normal chat input at the bottom (never hide it in any phase).
+Above the chat input, show a small inline form with:
+Two buttons:
+Let agent assess automatically
+I want to add restrictions
+If the second one is chosen, show:
+A multiline text box with placeholder:
+“e.g. Avoid US-sanctioned countries, no investments in Russia/Iran, ESG: no tobacco/alcohol/gambling/defence/fossil fuels…”
+Then:
+If user clicks “Let agent assess automatically” → send a payload like:
+If user types something in the box and clicks “Apply restrictions” → send:
+The chat input should still be usable; whatever the user types also goes as userMessage (for display), but the backend should rely on the structured bits (mode, notes) to set state.
+2. Backend patch (high-level)
+You likely already have something like phase === "restrictions"; extend it:
+interface RestrictionsPayload {
+  mode: "auto" | "manual";
+  notes?: string;
+}
+interface Restrictions {
+  mode: "auto" | "manual";
+  avoidSanctionedCountries?: boolean;
+  notes?: string;
+}
+When a NextRequest arrives in phase === "restrictions":
+if (state.phase === "restrictions") {
+  const payload = body.restrictions as RestrictionsPayload | undefined;
+  if (!payload || !payload.mode) {
+    // if somehow nothing is provided, ask again
+    return {
+      ...,
+      assistantMessages: [{
+        role: "assistant",
+        text: "You can either let me assess macro/micro/fund restrictions automatically, or specify them (e.g. 'Avoid US sanctioned countries')."
+      }]
+    };
+  }
+  const restrictions: Restrictions = {
+    mode: payload.mode,
+    notes: payload.notes,
+    avoidSanctionedCountries:
+      payload.mode === "manual" &&
+      (payload.notes ?? "").toLowerCase().includes("sanction"),
+  };
+  state.restrictions = restrictions;
+  state.phase = "countryScreening";
+  // then send the macro/micro/mandate-compatibility text we designed earlier
+}
+So your “Yes, avoid US sanctioned countries” can be captured via the notes field and also a simple flag for later logic.
+3. Frontend patch (concrete prompt)
+You can paste this straight into Replit / Cursor:
+In the Restrictions phase of the PE tool, fix the UX so the user can actually answer the question:
+"Before moving ahead, do you want to add any Macro / Micro / Fund restrictions, or I can assess macro conditions, micro and fund restrictions along with the provided fund mandate?"
+Requirements:
+1. Never hide the chat input in any phase. The user must always be able to type something.
+2. For phase === "restrictions", show a small panel above the chat input with:
+   - Button A: "Let agent assess automatically".
+   - Button B: "I want to add restrictions".
+   - If Button B is selected, show a multiline textarea with placeholder:
+     "e.g. Avoid US-sanctioned countries, no investments in Russia/Iran, ESG: no tobacco/alcohol/gambling/defence/fossil fuels…"
+   - A primary button "Apply restrictions" that sends the data to the backend.
+3. Update the payload sent to POST /api/chat/next so that in the Restrictions phase it includes a "restrictions" field:
+   {
+     sessionId,
+     userMessage,      // whatever is typed in the chat box (optional)
+     restrictions: {
+       mode: "auto" | "manual",
+       notes?: string   // text from the textarea, when manual
+     }
+   }
+4. On the backend, in phase === "restrictions":
+   - If mode === "auto", set state.restrictions = { mode: "auto" }.
+   - If mode === "manual", set:
+       state.restrictions = {
+         mode: "manual",
+         notes,
+         avoidSanctionedCountries: notes.toLowerCase().includes("sanction")
+       }
+   - Then move to "countryScreening" and send the macro/micro/mandate-compatibility analysis messages.
+5. Make sure that when this phase is active, the agent does NOT auto-advance without user interaction; it must wait for either:
+   - "Let agent assess automatically", or
+   - "Apply restrictions" with the textarea filled.
+Quick sanity check
+Right now, the system’s behaviour is:
+Asking an open natural-language question,
+But not giving you any natural-language or structured way to answer.
+That contradicts your core requirement (“chat-based tool, agent asks questions”). The fix above forces the UI and the state machine to respect that: you must either explicitly say “auto” or specify something like “Avoid US-sanctioned countries” before it moves on.
+ 
+{
+  "phase": "restrictions",
+  "mode": "manual",
+  "notes": "Avoid US sanctioned countries"
+}
+{
+  "phase": "restrictions",
+  "mode": "auto"
+}

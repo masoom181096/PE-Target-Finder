@@ -69,13 +69,20 @@ export type Phase =
   | "comparison"
   | "reportChosen";
 
+// Restrictions payload from frontend
+export interface RestrictionsPayload {
+  mode: "auto" | "manual";
+  notes?: string;
+}
+
 // Restrictions for macro/micro/fund constraints
 export interface Restrictions {
+  mode?: "auto" | "manual";
   avoidSanctionedCountries?: boolean;
   notes?: string;
 }
 
-export const defaultRestrictions: Restrictions = {};
+export const defaultRestrictions: Restrictions = { mode: "auto" };
 
 // Sub-parameter types for detailed scoring
 export type TopLevelParamId =
@@ -372,8 +379,8 @@ export interface NextRequest {
   sessionId: string;
   userMessage?: string;
   formData?: {
-    type: "fundMandate" | "weights" | "thresholds" | "chooseCompany";
-    data: FundMandate | ScoringWeights | Thresholds | { companyId: string };
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany";
+    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string };
   };
 }
 
@@ -488,8 +495,8 @@ export const nextRequestSchema = z.object({
   sessionId: z.string(),
   userMessage: z.string().optional(),
   formData: z.object({
-    type: z.enum(["fundMandate", "weights", "thresholds", "chooseCompany"]),
-    data: z.any(),
+    type: z.enum(["fundMandate", "restrictions", "weights", "thresholds", "chooseCompany"]),
+    data: z.any().optional(),
   }).optional(),
 });
 

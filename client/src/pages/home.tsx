@@ -5,6 +5,7 @@ import { ChatWindow } from "@/components/chat-window";
 import { ThinkingPanel } from "@/components/thinking-panel";
 import { PhaseProgress, PhaseProgressHorizontal } from "@/components/phase-progress";
 import { FundMandateForm } from "@/components/fund-mandate-form";
+import { RestrictionsForm } from "@/components/restrictions-form";
 import { WeightsForm } from "@/components/weights-form";
 import { ThresholdsForm } from "@/components/thresholds-form";
 import { CountryScreeningCard } from "@/components/country-screening-card";
@@ -28,6 +29,7 @@ import type {
   Thresholds,
   SavedSession,
   ReportTemplate,
+  RestrictionsPayload,
 } from "@shared/schema";
 import { initialConversationState, phaseLabels } from "@shared/schema";
 import type { TemplatedReportData } from "@/components/report-view";
@@ -155,6 +157,18 @@ export default function Home() {
     });
   };
 
+  const handleRestrictionsSubmit = (payload: RestrictionsPayload) => {
+    const summary = payload.mode === "auto" 
+      ? "Let agent assess restrictions automatically"
+      : `Restrictions: ${payload.notes || "None specified"}`;
+    setMessages((prev) => [...prev, { role: "user", text: summary }]);
+    chatMutation.mutate({
+      sessionId,
+      userMessage: summary,
+      formData: { type: "restrictions", data: payload },
+    });
+  };
+
   const handleContinueToWeights = () => {
     setMessages((prev) => [...prev, { role: "user", text: "Continue to scoring framework" }]);
     chatMutation.mutate({
@@ -216,10 +230,13 @@ export default function Home() {
     const loadedState: ConversationState = {
       phase: session.phase as ConversationState["phase"],
       fundMandate: (session.fundMandate as FundMandate) || {},
+      restrictions: initialConversationState.restrictions,
       scoringWeights: (session.scoringWeights as ScoringWeights) || initialConversationState.scoringWeights,
       thresholds: (session.thresholds as Thresholds) || initialConversationState.thresholds,
+      subParamPreferences: initialConversationState.subParamPreferences,
       shortlist: (session.shortlist as ConversationState["shortlist"]) || [],
       chosenCompanyId: session.chosenCompanyId || undefined,
+      reportTemplate: initialConversationState.reportTemplate,
     };
     setState(loadedState);
     localStorage.setItem("pe-finder-session", session.sessionId);
@@ -401,16 +418,23 @@ export default function Home() {
             <ChatWindow
               messages={messages}
               isProcessing={isProcessing}
-              inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening"}
+              inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening" && currentPhase !== "restrictions"}
               inputPlaceholder={
                 currentPhase === "countryScreening"
                   ? "Type 'continue' to proceed..."
+                  : currentPhase === "restrictions"
+                  ? "Or type your restrictions here..."
                   : "Type a message..."
               }
               onSendMessage={
-                currentPhase === "welcome" || currentPhase === "countryScreening"
+                currentPhase === "welcome" || currentPhase === "countryScreening" || currentPhase === "restrictions"
                   ? handleSendMessage
                   : undefined
+              }
+              aboveInputPanel={
+                currentPhase === "restrictions" ? (
+                  <RestrictionsForm onSubmit={handleRestrictionsSubmit} isLoading={isProcessing} />
+                ) : undefined
               }
               className="flex-1"
             >
@@ -438,16 +462,23 @@ export default function Home() {
                 <ChatWindow
                   messages={messages}
                   isProcessing={isProcessing}
-                  inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening"}
+                  inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening" && currentPhase !== "restrictions"}
                   inputPlaceholder={
                     currentPhase === "countryScreening"
                       ? "Type 'continue' to proceed..."
+                      : currentPhase === "restrictions"
+                      ? "Or type your restrictions here..."
                       : "Type a message..."
                   }
                   onSendMessage={
-                    currentPhase === "welcome" || currentPhase === "countryScreening"
+                    currentPhase === "welcome" || currentPhase === "countryScreening" || currentPhase === "restrictions"
                       ? handleSendMessage
                       : undefined
+                  }
+                  aboveInputPanel={
+                    currentPhase === "restrictions" ? (
+                      <RestrictionsForm onSubmit={handleRestrictionsSubmit} isLoading={isProcessing} />
+                    ) : undefined
                   }
                   className="h-full"
                 >
