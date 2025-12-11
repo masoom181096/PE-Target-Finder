@@ -382,8 +382,8 @@ export interface NextRequest {
   sessionId: string;
   userMessage?: string;
   formData?: {
-    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany";
-    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string };
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies";
+    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string } | { selectedCompanies: string[] };
   };
 }
 

@@ -283,7 +283,7 @@ export function processCompanyChoice(sessionId: string, companyId: string): Next
   const state = getOrCreateSession(sessionId);
   const company = state.shortlist.find((c) => c.id === companyId);
   
-  state.chosenCompanyId = companyId;
+  state.chosenCompanyIds = [companyId];
   state.phase = "reportChosen";
   updateSession(sessionId, state);
 
@@ -308,12 +308,62 @@ export function processCompanyChoice(sessionId: string, companyId: string): Next
   };
 }
 
+export function processMultiCompanySelection(sessionId: string, selectedCompanies: string[]): NextResponse {
+  const state = getOrCreateSession(sessionId);
+  
+  if (!selectedCompanies || selectedCompanies.length < 2) {
+    return {
+      state,
+      assistantMessages: [
+        createAssistantMessage(
+          "Please select at least two companies to move into the due diligence stage."
+        ),
+      ],
+      thinkingSteps: [
+        createThinkingStep("comparison", "Awaiting selection of at least 2 companies for due diligence..."),
+      ],
+      uiHints: {
+        showRecommendations: true,
+      },
+    };
+  }
+  
+  const selectedNames = selectedCompanies
+    .map((id) => state.shortlist.find((c) => c.id === id)?.name)
+    .filter(Boolean)
+    .join(" and ");
+  
+  state.chosenCompanyIds = selectedCompanies;
+  state.phase = "dueDiligence";
+  updateSession(sessionId, state);
+
+  return {
+    state,
+    assistantMessages: [
+      createAssistantMessage(
+        `I've generated detailed reports for the companies you selected: ${selectedNames}. Use the tabs below to review them side by side.\n\nEach report includes:\n• Executive Summary\n• Country Analysis\n• Financial Analysis\n• Operational & Value Creation\n• Exit Feasibility`
+      ),
+    ],
+    thinkingSteps: [
+      createThinkingStep("comparison", `Locking in ${selectedNames} for detailed due diligence...`),
+      createThinkingStep("dueDiligence", "Pulling detailed financial data from Capital IQ and Refinitiv..."),
+      createThinkingStep("dueDiligence", "Analyzing competitive positioning from CB Insights and Crunchbase..."),
+      createThinkingStep("dueDiligence", "Compiling exit comparables from Pitchbook transaction database..."),
+      createThinkingStep("dueDiligence", "Generating investment memos for all selected companies..."),
+      createThinkingStep("dueDiligence", "Reports generated. Presenting tabbed view to analyst."),
+    ],
+    uiHints: {
+      showReportsForCompanyIds: selectedCompanies,
+    },
+  };
+}
+
 export function processMessage(
   sessionId: string,
   userMessage?: string,
   formData?: {
-    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany";
-    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string };
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies";
+    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string } | { selectedCompanies: string[] };
   }
 ): NextResponse {
   const state = getOrCreateSession(sessionId);
@@ -334,6 +384,8 @@ export function processMessage(
         return processThresholds(sessionId, formData.data as Thresholds);
       case "chooseCompany":
         return processCompanyChoice(sessionId, (formData.data as { companyId: string }).companyId);
+      case "selectCompanies":
+        return processMultiCompanySelection(sessionId, (formData.data as { selectedCompanies: string[] }).selectedCompanies);
     }
   }
 
