@@ -76,16 +76,30 @@ export default function Home() {
   const [pendingAssistantMessages, setPendingAssistantMessages] = useState<ChatMessage[]>([]);
   const pendingAssistantMessagesRef = useRef<ChatMessage[]>([]);
   
-  // Keep ref in sync for use in callback
+  // Pending UI state - forms/tables shown only after thinking completes
+  const [pendingState, setPendingState] = useState<ConversationState | null>(null);
+  const pendingStateRef = useRef<ConversationState | null>(null);
+  
+  // Keep refs in sync for use in callback
   useEffect(() => {
     pendingAssistantMessagesRef.current = pendingAssistantMessages;
   }, [pendingAssistantMessages]);
   
-  // Flush pending messages when thinking streaming completes
+  useEffect(() => {
+    pendingStateRef.current = pendingState;
+  }, [pendingState]);
+  
+  // Flush pending messages AND UI state when thinking streaming completes
   const handleStreamingComplete = useCallback(() => {
+    // Flush assistant messages
     if (pendingAssistantMessagesRef.current.length > 0) {
       setMessages((prev) => [...prev, ...pendingAssistantMessagesRef.current]);
       setPendingAssistantMessages([]);
+    }
+    // Flush UI state (forms, tables, phase content)
+    if (pendingStateRef.current) {
+      setState(pendingStateRef.current);
+      setPendingState(null);
     }
   }, []);
 
@@ -95,8 +109,6 @@ export default function Home() {
       return response;
     },
     onSuccess: (data) => {
-      setState(data.state);
-      
       // Queue thinking steps for sequential streaming
       if (data.thinkingSteps.length > 0) {
         // Add all thinking steps at once - ThinkingPanel handles sequential streaming
@@ -104,8 +116,12 @@ export default function Home() {
         
         // Queue assistant messages to show AFTER thinking completes
         setPendingAssistantMessages((prev) => [...prev, ...data.assistantMessages]);
+        
+        // Queue UI state (forms/tables) to show AFTER thinking completes
+        setPendingState(data.state);
       } else {
-        // No thinking steps - show assistant messages immediately
+        // No thinking steps - show everything immediately
+        setState(data.state);
         data.assistantMessages.forEach((msg) => {
           setMessages((prev) => [...prev, msg]);
         });

@@ -1,0 +1,80 @@
+Bug: Agent Thinking now streams correctly and assistant messages appear only after thinking is complete, but the "result" (tables / forms / field inputs for the next step) appears immediately when the response arrives.
+ 
+Desired behaviour for each backend response:
+1) Stream all thinkingSteps (sequentially, as now).
+2) AFTER thinking finishes:
+   - Show assistantMessages in chat.
+   - Update the main UI (forms/tables/results) for the new phase.
+ 
+Nothing new should appear in the main content area while thinking is still streaming.
+ 
+====================================
+1. Add pending / active UI state
+====================================
+ 
+In the React state where we store the latest backend response for rendering the main content (phase data, tables, field configs, etc.), split it into two:
+ 
+- activeUiData: the data currently rendered on screen.
+- pendingUiData: the most recent response data, waiting for thinking to finish.
+ 
+Type can be whatever you use now for rendering the main view, e.g.:
+ 
+  interface UiData {
+    phase: Phase;
+    outputs: ...;      // forms, tables, etc.
+    // anything else you currently use
+  }
+ 
+Replace direct usage of "latest response" with activeUiData.
+ 
+When a new /api/chat/next response arrives:
+ 
+- Do NOT immediately update activeUiData.
+- Instead:
+ 
+    setPendingUiData(extractUiDataFromResponse(response));
+ 
+Keep the previous activeUiData visible during the thinking stream.
+ 
+====================================
+2. Flush UI after thinking completes
+====================================
+ 
+You already have a point where you call flushPendingAssistantMessages()
+right after all thinkingSteps have streamed.
+ 
+At that same point, also commit the UI:
+ 
+  const flushPendingData = () => {
+    // existing: assistant messages
+    setChatMessages(prev => [...prev, ...pendingAssistantMessagesRef.current]);
+    setPendingAssistantMessages([]);
+ 
+    // NEW: UI
+    if (pendingUiDataRef.current) {
+      setActiveUiData(pendingUiDataRef.current);
+      pendingUiDataRef.current = null;
+    }
+  };
+ 
+Make sure flushPendingData is called exactly once when the last
+thinking step finishes (same place you currently end the interval and set isStreaming = false).
+ 
+====================================
+3. Rendering
+====================================
+ 
+- The main content (forms, result tables, next-step inputs, etc.) should render from activeUiData ONLY.
+- pendingUiData is never rendered directly; it only becomes visible after flushPendingData() runs.
+ 
+====================================
+4. Summary
+====================================
+ 
+After this change, for each response:
+ 
+- User sees old content + new thinking streaming.
+- Nothing in the fields/results panel changes during streaming.
+- Once thinking is done:
+  - assistantMessages appear in chat,
+  - then the new fields/results for the next step appear together.
