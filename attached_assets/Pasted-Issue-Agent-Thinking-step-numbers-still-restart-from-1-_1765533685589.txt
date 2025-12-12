@@ -1,0 +1,79 @@
+Issue: Agent Thinking step numbers still restart from 1 on every user input.
+ 
+I want step numbers to be continuous across the whole session:
+- First response: Step 1, 2, 3
+- Next response: Step 4, 5, 6
+- etc.
+Step numbers must NOT reset per /api/chat/next call.
+ 
+Implement this ON THE BACKEND and keep the frontend very simple.
+ 
+======================================
+1. Conversation state: add a counter
+======================================
+ 
+In ConversationState (backend), add:
+ 
+  interface ConversationState {
+    ...
+    thinkingStepCounter: number;  // NEW
+  }
+ 
+When a new session is created (initial state), set:
+ 
+  thinkingStepCounter: 0
+ 
+IMPORTANT: Do NOT reset thinkingStepCounter on normal requests.
+Only reset it when starting a completely NEW session.
+ 
+======================================
+2. Assign stepNumber on the backend
+======================================
+ 
+Wherever we build response.thinkingSteps on the backend, change the code so each step gets a stepNumber from state.thinkingStepCounter.
+ 
+Example:
+ 
+  // Before: thinkingSteps: ThinkingStep[] = [{ id, text, phase }, ...];
+ 
+  const thinkingSteps = originalThinkingSteps.map((step) => {
+    state.thinkingStepCounter += 1;
+    return {
+      ...step,
+      stepNumber: state.thinkingStepCounter,  // NEW FIELD
+    };
+  });
+ 
+  // Include this thinkingSteps array in the JSON response.
+ 
+Update the ThinkingStep type on backend and frontend to include:
+ 
+  interface ThinkingStep {
+    id: string;
+    phase: string;
+    text: string;
+    stepNumber: number;   // NEW
+  }
+ 
+======================================
+3. Frontend: use stepNumber from backend
+======================================
+ 
+In the frontend:
+ 
+- REMOVE any local counters / refs used to generate "Step X".
+- Do NOT recompute indices based on array position.
+- When rendering each thinking step, use the backend-provided number:
+ 
+  "Step {step.stepNumber}"
+ 
+The streaming logic (char-by-char, sequential) should still work the same;
+only the displayed label changes to use step.stepNumber from the response.
+ 
+======================================
+4. Summary
+======================================
+ 
+- Backend owns the global step count (thinkingStepCounter).
+- Each new thinking step increments that counter and gets a fixed stepNumber.
+- Frontend only displays step.stepNumber and never resets or recalculates.

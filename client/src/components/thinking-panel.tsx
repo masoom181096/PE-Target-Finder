@@ -11,7 +11,7 @@ interface DisplayedStep {
   phase: Phase;
   fullText: string;
   shownText: string;
-  displayStep: number;
+  stepNumber: number;
 }
 
 interface ThinkingPanelProps {
@@ -21,26 +21,18 @@ interface ThinkingPanelProps {
   onStreamingComplete?: () => void;
 }
 
-// Extended step type with displayStep for queue
-interface QueuedStep extends ThinkingStep {
-  displayStep: number;
-}
-
 export function ThinkingPanel({ steps, isProcessing = false, className, onStreamingComplete }: ThinkingPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [displayedSteps, setDisplayedSteps] = useState<DisplayedStep[]>([]);
   
-  // Queue of steps waiting to be streamed
-  const [thinkingQueue, setThinkingQueue] = useState<QueuedStep[]>([]);
+  // Queue of steps waiting to be streamed (uses backend-provided stepNumber)
+  const [thinkingQueue, setThinkingQueue] = useState<ThinkingStep[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  
-  // Global step counter - persists across all responses in the session
-  const globalStepCounterRef = useRef<number>(0);
   
   // Refs for streaming state to avoid stale closures
   const activeStepIndexRef = useRef(0);
   const activeCharIndexRef = useRef(0);
-  const thinkingQueueRef = useRef<QueuedStep[]>([]);
+  const thinkingQueueRef = useRef<ThinkingStep[]>([]);
   const onStreamingCompleteRef = useRef(onStreamingComplete);
   
   // Keep refs in sync
@@ -52,33 +44,33 @@ export function ThinkingPanel({ steps, isProcessing = false, className, onStream
     onStreamingCompleteRef.current = onStreamingComplete;
   }, [onStreamingComplete]);
 
-  // When new steps come in, add them to the queue with global step numbers
+  // When new steps come in, add them to the queue (backend provides stepNumber)
   const processedIdsRef = useRef<Set<string>>(new Set());
   
   useEffect(() => {
-    const newSteps: QueuedStep[] = [];
+    const newSteps: ThinkingStep[] = [];
     
     steps.forEach((step) => {
       if (!processedIdsRef.current.has(step.id)) {
         processedIdsRef.current.add(step.id);
-        // Assign global step number
-        globalStepCounterRef.current += 1;
-        newSteps.push({
-          ...step,
-          displayStep: globalStepCounterRef.current,
-        });
+        newSteps.push(step);
       }
     });
 
     if (newSteps.length > 0) {
-      setThinkingQueue((prev) => [...prev, ...newSteps]);
-      
-      // Start streaming if not already
-      if (!isStreaming) {
-        setIsStreaming(true);
-        activeStepIndexRef.current = 0;
-        activeCharIndexRef.current = 0;
-      }
+      setThinkingQueue((prev) => {
+        const updated = [...prev, ...newSteps];
+        
+        // Start streaming if not already
+        if (!isStreaming) {
+          setIsStreaming(true);
+          // Start from where we left off (the first new step)
+          activeStepIndexRef.current = prev.length;
+          activeCharIndexRef.current = 0;
+        }
+        
+        return updated;
+      });
     }
   }, [steps, isStreaming]);
 
@@ -116,7 +108,7 @@ export function ThinkingPanel({ steps, isProcessing = false, className, onStream
             phase: currentStep.phase,
             fullText: currentStep.text,
             shownText: "",
-            displayStep: currentStep.displayStep,
+            stepNumber: currentStep.stepNumber,
           });
           displayIndex = displayed.length - 1;
         }
@@ -216,7 +208,7 @@ function ThinkingStepItem({ step, isLatest }: ThinkingStepItemProps) {
     >
       <div className="flex items-center gap-2 mb-2">
         <span className="text-xs font-medium text-muted-foreground">
-          Step {step.displayStep}
+          Step {step.stepNumber}
         </span>
         <Badge variant="secondary" className="text-xs font-normal">
           {phaseLabels[step.phase]}

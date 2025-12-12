@@ -416,6 +416,7 @@ export interface ConversationState {
   reportTemplate: ReportTemplate;
   finalSelectedCompanyId?: string;
   infoRequestConfirmed?: boolean; // Tracks if email interest collection was completed
+  thinkingStepCounter: number; // Global counter for continuous step numbering
 }
 
 // Default fund mandate with empty arrays
@@ -442,6 +443,7 @@ export const initialConversationState: ConversationState = {
   shortlist: [],
   chosenCompanyIds: [],
   reportTemplate: "growth",
+  thinkingStepCounter: 0,
 };
 
 // API Request/Response types
@@ -449,6 +451,7 @@ export interface ThinkingStep {
   id: string;
   phase: Phase;
   text: string;
+  stepNumber: number;
 }
 
 export interface AssistantMessage {

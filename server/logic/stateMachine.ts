@@ -31,8 +31,15 @@ export function updateSession(sessionId: string, state: ConversationState): void
   sessions.set(sessionId, state);
 }
 
-function createThinkingStep(phase: Phase, text: string): ThinkingStep {
-  return { id: randomUUID(), phase, text };
+function createThinkingStep(phase: Phase, text: string, stepNumber: number): ThinkingStep {
+  return { id: randomUUID(), phase, text, stepNumber };
+}
+
+function createThinkingSteps(state: ConversationState, steps: Array<{ phase: Phase; text: string }>): ThinkingStep[] {
+  return steps.map((step) => {
+    state.thinkingStepCounter += 1;
+    return createThinkingStep(step.phase, step.text, state.thinkingStepCounter);
+  });
 }
 
 function createAssistantMessage(text: string): AssistantMessage {
@@ -42,6 +49,15 @@ function createAssistantMessage(text: string): AssistantMessage {
 export function processWelcome(sessionId: string): NextResponse {
   const state = getOrCreateSession(sessionId);
   state.phase = "fundMandate";
+  
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "welcome", text: "gathering process flow from Capability Compass" },
+    { phase: "welcome", text: "Analyzing required information and fields" },
+    { phase: "welcome", text: "Initializing PE screening session..." },
+    { phase: "welcome", text: "Loading target company database from Pitchbook, Crunchbase, and Refinitiv..." },
+    { phase: "fundMandate", text: "Preparing to capture fund mandate parameters..." },
+  ]);
+  
   updateSession(sessionId, state);
 
   return {
@@ -51,13 +67,7 @@ export function processWelcome(sessionId: string): NextResponse {
         "Hi, I'm your PE Target Finder Agent. I'll guide you through a structured screening process to identify and evaluate potential investment targets.\n\nLet's start by capturing your fund mandate. Please fill out the form below with your fund parameters."
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("welcome", "gathering process flow from Capability Compass"),
-      createThinkingStep("welcome", "Analyzing required information and fields"),
-      createThinkingStep("welcome", "Initializing PE screening session..."),
-      createThinkingStep("welcome", "Loading target company database from Pitchbook, Crunchbase, and Refinitiv..."),
-      createThinkingStep("fundMandate", "Preparing to capture fund mandate parameters..."),
-    ],
+    thinkingSteps,
   };
 }
 
@@ -70,7 +80,6 @@ export function processFundMandate(sessionId: string, mandate: FundMandate): Nex
   const state = getOrCreateSession(sessionId);
   state.fundMandate = mandate;
   state.phase = "restrictions";
-  updateSession(sessionId, state);
 
   // Handle both legacy string fields and new OptionSelection fields
   const fundTypeLabel = typeof mandate.fundType === 'string' 
@@ -93,6 +102,14 @@ export function processFundMandate(sessionId: string, mandate: FundMandate): Nex
     ? mandate.riskAppetite 
     : getOptionLabel(mandate.riskAppetite) || "Medium";
 
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "fundMandate", text: "Capturing core fund mandate parameters..." },
+    { phase: "fundMandate", text: `Mapping deal size ${dealSize} to fund size to estimate feasible targets...` },
+    { phase: "restrictions", text: "Preparing to assess macro/micro conditions and fund restrictions..." },
+  ]);
+  
+  updateSession(sessionId, state);
+
   return {
     state,
     assistantMessages: [
@@ -100,11 +117,7 @@ export function processFundMandate(sessionId: string, mandate: FundMandate): Nex
         `Got it. You're a ${fundTypeLabel.replace("-", " ")} fund focused on ${sectors} in ${geos}, with ticket size ${dealSize} and ${riskLabel} risk appetite.\n\nBefore moving ahead, do you want to add any Macro / Micro / Fund restrictions, or I can assess macro conditions, micro and fund restrictions along with the provided fund mandate?`
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("fundMandate", "Capturing core fund mandate parameters..."),
-      createThinkingStep("fundMandate", `Mapping deal size ${dealSize} to fund size to estimate feasible targets...`),
-      createThinkingStep("restrictions", "Preparing to assess macro/micro conditions and fund restrictions..."),
-    ],
+    thinkingSteps,
   };
 }
 
@@ -148,6 +161,17 @@ export function processRestrictions(sessionId: string, payload?: RestrictionsPay
   }
   
   state.phase = "countryScreening";
+  
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "restrictions", text: "Assessing macro conditions across India, Singapore, Vietnam based on demo Refinitiv / CIQ data..." },
+    { phase: "restrictions", text: "Comparing unit economics and growth profiles to your mandate..." },
+    { phase: "restrictions", text: "Identifying India and Singapore as strongest fits given your ticket size and ESG preferences..." },
+    { phase: "countryScreening", text: "Querying macro indicators from Refinitiv and Capital IQ..." },
+    { phase: "countryScreening", text: "Evaluating India: market size, tech ecosystem depth, regulatory risk, FX volatility..." },
+    { phase: "countryScreening", text: "Evaluating Singapore: legal system strength, capital markets depth, ease of doing business..." },
+    { phase: "countryScreening", text: "Both markets pass initial screening criteria. Ready for weights configuration..." },
+  ]);
+  
   updateSession(sessionId, state);
 
   return {
@@ -174,15 +198,7 @@ Overall, macro, micro and mandate alignment is strongest in India and Singapore.
 Reply 'continue' to proceed to the scoring framework configuration.`
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("restrictions", "Assessing macro conditions across India, Singapore, Vietnam based on demo Refinitiv / CIQ data..."),
-      createThinkingStep("restrictions", "Comparing unit economics and growth profiles to your mandate..."),
-      createThinkingStep("restrictions", "Identifying India and Singapore as strongest fits given your ticket size and ESG preferences..."),
-      createThinkingStep("countryScreening", "Querying macro indicators from Refinitiv and Capital IQ..."),
-      createThinkingStep("countryScreening", "Evaluating India: market size, tech ecosystem depth, regulatory risk, FX volatility..."),
-      createThinkingStep("countryScreening", "Evaluating Singapore: legal system strength, capital markets depth, ease of doing business..."),
-      createThinkingStep("countryScreening", "Both markets pass initial screening criteria. Ready for weights configuration..."),
-    ],
+    thinkingSteps,
   };
 }
 
@@ -190,6 +206,13 @@ export function processCountryScreening(sessionId: string): NextResponse {
   const state = getOrCreateSession(sessionId);
   state.phase = "weights";
   state.scoringWeights = defaultScoringWeights;
+  
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "weights", text: "Initializing scoring framework for target companies..." },
+    { phase: "weights", text: "Loading default weight distribution (10 points each)..." },
+    { phase: "weights", text: "Balancing weights across earnings quality, growth, competitive positioning, and exit feasibility..." },
+  ]);
+  
   updateSession(sessionId, state);
 
   return {
@@ -199,11 +222,7 @@ export function processCountryScreening(sessionId: string): NextResponse {
         "Now let's configure your scoring framework. I'll use these 10 parameters to evaluate and rank target companies:\n\n1. Quality of Earnings\n2. Financial Performance\n3. Industry Attractiveness\n4. Competitive Positioning\n5. Management & Governance\n6. Operational Efficiency\n7. Customer & Market Dynamics\n8. Product Strength\n9. Exit Feasibility\n10. Scalability Potential\n\nAdjust the weights below to reflect what matters most to your fund. The total must equal 100."
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("weights", "Initializing scoring framework for target companies..."),
-      createThinkingStep("weights", "Loading default weight distribution (10 points each)..."),
-      createThinkingStep("weights", "Balancing weights across earnings quality, growth, competitive positioning, and exit feasibility..."),
-    ],
+    thinkingSteps,
   };
 }
 
@@ -212,6 +231,14 @@ export function processWeights(sessionId: string, weights: ScoringWeights): Next
   state.scoringWeights = weights;
   state.phase = "thresholds";
   state.thresholds = defaultThresholds;
+  
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "weights", text: "Validating scoring weights sum to 100..." },
+    { phase: "weights", text: "Weights applied successfully. Framework ready for screening." },
+    { phase: "thresholds", text: "Preparing threshold configuration for hard filters..." },
+    { phase: "thresholds", text: "Loading default thresholds based on fund mandate parameters..." },
+  ]);
+  
   updateSession(sessionId, state);
 
   return {
@@ -221,12 +248,7 @@ export function processWeights(sessionId: string, weights: ScoringWeights): Next
         "Scoring weights configured. Now let's set your hard filters — companies that don't meet these thresholds will be excluded from the shortlist.\n\nPlease configure your minimum and maximum thresholds for key financial metrics below."
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("weights", "Validating scoring weights sum to 100..."),
-      createThinkingStep("weights", "Weights applied successfully. Framework ready for screening."),
-      createThinkingStep("thresholds", "Preparing threshold configuration for hard filters..."),
-      createThinkingStep("thresholds", "Loading default thresholds based on fund mandate parameters..."),
-    ],
+    thinkingSteps,
   };
 }
 
@@ -247,7 +269,6 @@ export function processThresholds(
   const shortlist = scoreAndRankCompanies(state.scoringWeights, state.thresholds || {});
   state.shortlist = shortlist;
   state.phase = "shortlist";
-  updateSession(sessionId, state);
 
   const shortlistSummary = shortlist
     .map((c) => `• Rank ${c.rank}: ${c.name} (${c.country}) — Score: ${c.score}/100`)
@@ -258,6 +279,17 @@ export function processThresholds(
     ? `Applying ${filledCount} user-defined sub-parameter thresholds...`
     : `Applying default thresholds based on fund mandate...`;
 
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "thresholds", text: thresholdDescription },
+    { phase: "thresholds", text: "Filtering companies in India and Singapore from Pitchbook/Refinitiv universe..." },
+    { phase: "shortlist", text: "Computing composite scores using configured weights..." },
+    { phase: "shortlist", text: `Screening complete. ${shortlist.length} companies passed all thresholds.` },
+    { phase: "shortlist", text: `Final ranking: 1) ${shortlist[0]?.name}, 2) ${shortlist[1]?.name}, 3) ${shortlist[2]?.name}` },
+    { phase: "shortlist", text: "Presenting shortlist to analyst for review..." },
+  ]);
+  
+  updateSession(sessionId, state);
+
   return {
     state,
     assistantMessages: [
@@ -265,14 +297,7 @@ export function processThresholds(
         `I've applied your thresholds and screened the universe of companies. Here are the three that best match your mandate:\n\n${shortlistSummary}\n\nReview the detailed profiles below and click "Generate Report" on the company you'd like me to prepare a full investment memo for.`
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("thresholds", thresholdDescription),
-      createThinkingStep("thresholds", "Filtering companies in India and Singapore from Pitchbook/Refinitiv universe..."),
-      createThinkingStep("shortlist", "Computing composite scores using configured weights..."),
-      createThinkingStep("shortlist", `Screening complete. ${shortlist.length} companies passed all thresholds.`),
-      createThinkingStep("shortlist", `Final ranking: 1) ${shortlist[0]?.name}, 2) ${shortlist[1]?.name}, 3) ${shortlist[2]?.name}`),
-      createThinkingStep("shortlist", "Presenting shortlist to analyst for review..."),
-    ],
+    thinkingSteps,
     uiHints: {
       showRecommendations: true,
     },
@@ -282,6 +307,12 @@ export function processThresholds(
 export function processShortlist(sessionId: string): NextResponse {
   const state = getOrCreateSession(sessionId);
   state.phase = "comparison";
+  
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "comparison", text: "Presenting detailed company profiles for analyst review..." },
+    { phase: "comparison", text: "Awaiting analyst selection for investment memo generation..." },
+  ]);
+  
   updateSession(sessionId, state);
 
   return {
@@ -291,10 +322,7 @@ export function processShortlist(sessionId: string): NextResponse {
         "Here are the detailed profiles of each candidate. Review the highlights and key metrics, then click 'Generate Report' on the company you'd like me to prepare a comprehensive investment memo for.\n\nRemember: this is your decision. I'm providing structure, scoring, and data — but the final investment recommendation is yours to make."
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("comparison", "Presenting detailed company profiles for analyst review..."),
-      createThinkingStep("comparison", "Awaiting analyst selection for investment memo generation..."),
-    ],
+    thinkingSteps,
     uiHints: {
       showRecommendations: true,
     },
@@ -307,6 +335,16 @@ export function processCompanyChoice(sessionId: string, companyId: string): Next
   
   state.chosenCompanyIds = [companyId];
   state.phase = "reportChosen";
+  
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "reportChosen", text: `Analyst selected ${company?.name} for detailed analysis.` },
+    { phase: "reportChosen", text: "Pulling detailed financial data from Capital IQ and Refinitiv..." },
+    { phase: "reportChosen", text: "Analyzing competitive positioning from CB Insights and Crunchbase..." },
+    { phase: "reportChosen", text: "Compiling exit comparables from Pitchbook transaction database..." },
+    { phase: "reportChosen", text: "Generating investment memo with executive summary and key findings..." },
+    { phase: "reportChosen", text: "Report generation complete. Presenting to analyst." },
+  ]);
+  
   updateSession(sessionId, state);
 
   return {
@@ -316,14 +354,7 @@ export function processCompanyChoice(sessionId: string, companyId: string): Next
         `Excellent choice. Generating comprehensive investment memo for ${company?.name}...\n\nThe report includes:\n• Executive Summary\n• Country Analysis\n• Financial Analysis (Quality of Earnings, Growth & Positioning)\n• Operational Strength & Value Creation\n• Exit Feasibility Assessment`
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("reportChosen", `Analyst selected ${company?.name} for detailed analysis.`),
-      createThinkingStep("reportChosen", "Pulling detailed financial data from Capital IQ and Refinitiv..."),
-      createThinkingStep("reportChosen", "Analyzing competitive positioning from CB Insights and Crunchbase..."),
-      createThinkingStep("reportChosen", "Compiling exit comparables from Pitchbook transaction database..."),
-      createThinkingStep("reportChosen", "Generating investment memo with executive summary and key findings..."),
-      createThinkingStep("reportChosen", "Report generation complete. Presenting to analyst."),
-    ],
+    thinkingSteps,
     uiHints: {
       showReportForCompanyId: companyId,
     },
@@ -334,6 +365,11 @@ export function processMultiCompanySelection(sessionId: string, selectedCompanie
   const state = getOrCreateSession(sessionId);
   
   if (!selectedCompanies || selectedCompanies.length < 2) {
+    const thinkingSteps = createThinkingSteps(state, [
+      { phase: "comparison", text: "Awaiting selection of at least 2 companies for due diligence..." },
+    ]);
+    updateSession(sessionId, state);
+    
     return {
       state,
       assistantMessages: [
@@ -341,9 +377,7 @@ export function processMultiCompanySelection(sessionId: string, selectedCompanie
           "Please select at least two companies to move into the due diligence stage."
         ),
       ],
-      thinkingSteps: [
-        createThinkingStep("comparison", "Awaiting selection of at least 2 companies for due diligence..."),
-      ],
+      thinkingSteps,
       uiHints: {
         showRecommendations: true,
       },
@@ -357,12 +391,18 @@ export function processMultiCompanySelection(sessionId: string, selectedCompanie
   
   state.chosenCompanyIds = selectedCompanies;
   state.phase = "infoRequest";
-  updateSession(sessionId, state);
 
   const emailDrafts = selectedCompanies.map((id) => {
     const company = state.shortlist.find((c) => c.id === id);
     return `**To: ${company?.name} Management Team**\n\nDear ${company?.name} team,\n\nWe are a Growth & Buyout fund interested in initiating due diligence on your company. We would like to request additional financial, operational, and legal documentation to support our evaluation process.\n\nPlease provide the following at your earliest convenience:\n• Audited financial statements (last 3 years)\n• Monthly management accounts (last 12 months)\n• Customer contracts and key commercial agreements\n• Organizational chart and key personnel details\n• Technology stack and IP documentation\n\nWe appreciate your cooperation and look forward to engaging further.\n\nBest regards,\nPE Target Finder Team`;
   }).join("\n\n---\n\n");
+
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "comparison", text: `Locking in ${selectedNames} for detailed due diligence...` },
+    { phase: "infoRequest", text: "Drafting interest mails for shortlisted companies..." },
+  ]);
+  
+  updateSession(sessionId, state);
 
   return {
     state,
@@ -374,10 +414,7 @@ export function processMultiCompanySelection(sessionId: string, selectedCompanie
         `Review the draft emails below and confirm when I can proceed.\n\n${emailDrafts}`
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("comparison", `Locking in ${selectedNames} for detailed due diligence...`),
-      createThinkingStep("infoRequest", "Drafting interest mails for shortlisted companies..."),
-    ],
+    thinkingSteps,
     uiHints: {
       showInfoRequest: true,
       emailDrafts: selectedCompanies.map((id) => ({
@@ -398,6 +435,18 @@ export function processInfoRequestConfirm(sessionId: string): NextResponse {
   
   state.phase = "dueDiligence";
   state.infoRequestConfirmed = true;
+  
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "infoRequest", text: "Sending interest mails to shortlisted companies..." },
+    { phase: "infoRequest", text: "Receiving required documentation and data packs..." },
+    { phase: "infoRequest", text: "Validating completeness of received information for due diligence..." },
+    { phase: "dueDiligence", text: "Pulling detailed financial data from Capital IQ and Refinitiv..." },
+    { phase: "dueDiligence", text: "Analyzing competitive positioning from CB Insights and Crunchbase..." },
+    { phase: "dueDiligence", text: "Compiling exit comparables from Pitchbook transaction database..." },
+    { phase: "dueDiligence", text: "Generating investment memos for all selected companies..." },
+    { phase: "dueDiligence", text: "Reports generated. Presenting tabbed view to analyst." },
+  ]);
+  
   updateSession(sessionId, state);
 
   return {
@@ -407,16 +456,7 @@ export function processInfoRequestConfirm(sessionId: string): NextResponse {
         `I've generated detailed reports for the companies you selected: ${selectedNames}. Use the tabs below to review them side by side.\n\nEach report includes:\n• Executive Summary\n• Country Analysis\n• Financial Analysis\n• Operational & Value Creation\n• Exit Feasibility`
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("infoRequest", "Sending interest mails to shortlisted companies..."),
-      createThinkingStep("infoRequest", "Receiving required documentation and data packs..."),
-      createThinkingStep("infoRequest", "Validating completeness of received information for due diligence..."),
-      createThinkingStep("dueDiligence", "Pulling detailed financial data from Capital IQ and Refinitiv..."),
-      createThinkingStep("dueDiligence", "Analyzing competitive positioning from CB Insights and Crunchbase..."),
-      createThinkingStep("dueDiligence", "Compiling exit comparables from Pitchbook transaction database..."),
-      createThinkingStep("dueDiligence", "Generating investment memos for all selected companies..."),
-      createThinkingStep("dueDiligence", "Reports generated. Presenting tabbed view to analyst."),
-    ],
+    thinkingSteps,
     uiHints: {
       showReportsForCompanyIds: state.chosenCompanyIds,
     },
@@ -429,6 +469,15 @@ export function processSelectPreferred(sessionId: string, companyId: string): Ne
   
   state.finalSelectedCompanyId = companyId;
   state.phase = "taskCompleted";
+  
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "dueDiligence", text: `Analyst selected ${company?.name} as the preferred investment target.` },
+    { phase: "dueDiligence", text: "Finalizing investment memo and recommendation package..." },
+    { phase: "taskCompleted", text: "Recording final selection in screening session..." },
+    { phase: "taskCompleted", text: "Preparing next steps summary for investment committee..." },
+    { phase: "taskCompleted", text: "Screening process completed successfully." },
+  ]);
+  
   updateSession(sessionId, state);
 
   return {
@@ -438,13 +487,7 @@ export function processSelectPreferred(sessionId: string, companyId: string): Ne
         `Excellent decision! You have selected **${company?.name}** as your preferred investment target.\n\nThe investment memo has been finalized and is ready for your investment committee review. Here's a summary of next steps:\n\n1. Present findings to your investment committee\n2. Schedule preliminary discussions with ${company?.name} management\n3. Engage external advisors for detailed due diligence\n4. Prepare indicative offer and term sheet\n\nCongratulations on completing the screening process!`
       ),
     ],
-    thinkingSteps: [
-      createThinkingStep("dueDiligence", `Analyst selected ${company?.name} as the preferred investment target.`),
-      createThinkingStep("dueDiligence", "Finalizing investment memo and recommendation package..."),
-      createThinkingStep("taskCompleted", "Recording final selection in screening session..."),
-      createThinkingStep("taskCompleted", "Preparing next steps summary for investment committee..."),
-      createThinkingStep("taskCompleted", "Screening process completed successfully."),
-    ],
+    thinkingSteps,
   };
 }
 
