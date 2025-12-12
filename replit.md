@@ -39,6 +39,7 @@ This application guides PE analysts through a structured process to identify and
   - `report-view.tsx` - Investment memo with template selection, scoring radar, financial metrics charts
   - `due-diligence-reports.tsx` - Tabbed reports for multi-company due diligence with risk comparison strip
   - `contract-risk-section.tsx` - Contract risk breakdown with 11 buckets and grading
+  - `info-request-card.tsx` - Email interest collection with draft emails for selected companies
   - `task-completed.tsx` - Success screen for final company selection
   - `session-manager.tsx` - Save/load session UI
 
@@ -61,16 +62,16 @@ This application guides PE analysts through a structured process to identify and
 
 ## Phase Flow
 
-1. **welcome** - Initial greeting
+1. **welcome** - Initial greeting with Capability Compass thinking messages
 2. **fundMandate** - Collect fund investment criteria (11 categories with checkbox/radio + "Other" patterns)
 3. **restrictions** - Macro/Micro/Fund restrictions input (e.g., "Avoid US sanctioned countries")
 4. **countryScreening** - Filter by target countries (India/Singapore), includes macro/micro analysis
 5. **weights** - Configure 10 scoring parameters (must sum to 100)
 6. **thresholds** - Set investment requirements with 50+ sub-parameters
 7. **shortlist** - Display ranked candidates (forced ranking: Mantla > Instaworks > Disprztech)
-8. **comparison** - Detailed review with chart comparison and "Generate Report" option
-9. **dueDiligence** - Tabbed investment memos with risk comparison for selected companies
-10. **reportChosen** - Display comprehensive investment memo with visualizations
+8. **comparison** - Detailed review with chart comparison and multi-company selection (minimum 2 required)
+9. **infoRequest** - Email interest collection step with draft emails for selected companies
+10. **dueDiligence** - Tabbed investment memos with risk comparison for selected companies
 11. **taskCompleted** - Final selection confirmation with next steps summary
 
 ## Features
