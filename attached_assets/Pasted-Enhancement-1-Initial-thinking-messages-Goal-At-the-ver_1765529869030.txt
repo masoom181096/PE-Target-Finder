@@ -1,0 +1,140 @@
+Enhancement 1: Initial thinking messages
+========================================
+ 
+Goal: At the very start of the tool, before any questions, the Agent Thinking panel should show:
+ 
+1) "gathering process flow from Capability Compass"
+2) "Analyzing required information and fields"
+ 
+Implementation:
+ 
+- In the backend, in the first response for a new session (phase === "welcome" / initial state), add two ThinkingStep entries to the response BEFORE any other thinking steps:
+ 
+  thinkingSteps: [
+    {
+      id: "init-1",
+      phase: "welcome",
+      text: "gathering process flow from Capability Compass"
+    },
+    {
+      id: "init-2",
+      phase: "welcome",
+      text: "Analyzing required information and fields"
+    },
+    ...
+  ]
+ 
+- Do NOT change the existing streaming logic; these two messages should stream like the rest in the Thinking panel.
+ 
+- Only add them once per new session (not on every subsequent /api/chat/next call).
+ 
+ 
+Enhancement 2: Email interest + info collection step before Due Diligence
+========================================================================
+ 
+Goal: After the analyst selects ≥2 companies from the shortlist, the tool should:
+ 
+1) Show a step where it "sends interest mail" to those companies requesting extra info/docs.
+2) Only after this simulated exchange is "complete" should it move into the Due Diligence phase.
+ 
+State:
+ 
+- Add a new phase between comparison and dueDiligence:
+ 
+  type Phase =
+    ...
+    | "comparison"
+    | "infoRequest"   // NEW
+    | "dueDiligence"
+    | "taskCompleted";
+ 
+- ConversationState already has chosenCompanyIds (the selected companies for DD).
+ 
+ 
+Backend flow:
+ 
+1) In phase === "comparison", when the frontend submits the selected company IDs
+   (which you already use to jump to dueDiligence), CHANGE behaviour:
+ 
+   - Instead of setting phase = "dueDiligence", set:
+ 
+       state.chosenCompanyIds = selectedIds;
+       state.phase = "infoRequest";
+ 
+   - Respond with:
+ 
+       assistantMessages: [
+         {
+           role: "assistant",
+           text:
+             "I will now send interest mails to the shortlisted companies requesting additional information and documentation for due diligence."
+         },
+         {
+           role: "assistant",
+           text:
+             "Review the draft email below and confirm when I can proceed."
+         }
+       ]
+ 
+       plus a simple email template per company (text only is fine) in the same message or a separate message, e.g.:
+ 
+         "Dear [Company Name] team, we are a Growth & buyout fund interested in initiating due diligence and would like to request additional financial, operational and legal documentation..."
+ 
+       thinkingSteps: [
+         { id: "info-1", phase: "infoRequest", text: "Drafting interest mails for shortlisted companies..." }
+       ]
+ 
+2) Add a small action in the API payload for this phase. From the frontend you will send:
+ 
+   {
+     sessionId,
+     phase: "infoRequest",
+     action: "confirmEmails"   // when user clicks the proceed button
+   }
+ 
+3) In backend handler, when phase === "infoRequest" and action === "confirmEmails":
+ 
+   - Add extra thinking steps:
+ 
+       thinkingSteps.push(
+         { id: "info-2", phase: "infoRequest", text: "Sending interest mails to shortlisted companies..." },
+         { id: "info-3", phase: "infoRequest", text: "Receiving required documentation and data packs..." },
+         { id: "info-4", phase: "infoRequest", text: "Validating completeness of received information for due diligence..." }
+       );
+ 
+   - Then set:
+ 
+       state.phase = "dueDiligence";
+ 
+   - Return the normal initial dueDiligence response (reports + risk calc starter etc.) in the same API call.
+ 
+ 
+Frontend flow:
+ 
+1) After the user selects ≥2 companies and clicks "Proceed" from the comparison screen:
+ 
+   - You already call POST /api/chat/next with selectedCompanies.
+   - After the backend sets phase = "infoRequest", render a simple view:
+ 
+     - Show the assistant text and the email draft(s).
+     - Show a single primary button:
+ 
+         "Send interest mails and start due diligence"
+ 
+2) When that button is clicked:
+ 
+   - Call POST /api/chat/next with:
+ 
+       {
+         sessionId,
+         phase: "infoRequest",
+         action: "confirmEmails"
+       }
+ 
+   - Then, when the response comes back with phase = "dueDiligence", switch to the existing Due Diligence UI.
+ 
+Result:
+ 
+- Initial load always shows the two Capability Compass thinking lines.
+- Between shortlist selection and due diligence there is now a clear
+  "interest mail + info received" step, with thinking messages and a single confirm button.

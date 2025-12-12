@@ -68,6 +68,7 @@ export type Phase =
   | "thresholds"
   | "shortlist"
   | "comparison"
+  | "infoRequest"
   | "dueDiligence"
   | "reportChosen"
   | "taskCompleted";
