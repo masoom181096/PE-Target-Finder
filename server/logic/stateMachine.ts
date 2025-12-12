@@ -54,7 +54,6 @@ export function processWelcome(sessionId: string): NextResponse {
     { phase: "welcome", text: "gathering process flow from Capability Compass" },
     { phase: "welcome", text: "Analyzing required information and fields" },
     { phase: "welcome", text: "Initializing PE screening session..." },
-    { phase: "welcome", text: "Loading target company database from Pitchbook, Crunchbase, and Refinitiv..." },
     { phase: "fundMandate", text: "Preparing to capture fund mandate parameters..." },
   ]);
   
