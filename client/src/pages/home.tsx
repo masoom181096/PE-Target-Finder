@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { ChatWindow } from "@/components/chat-window";
@@ -71,6 +71,23 @@ export default function Home() {
   }>>([]);
   const [comparisonView, setComparisonView] = useState<"table" | "chart">("table");
   const [isLoadingScores, setIsLoadingScores] = useState(false);
+  
+  // Pending assistant messages - shown only after thinking steps finish streaming
+  const [pendingAssistantMessages, setPendingAssistantMessages] = useState<ChatMessage[]>([]);
+  const pendingAssistantMessagesRef = useRef<ChatMessage[]>([]);
+  
+  // Keep ref in sync for use in callback
+  useEffect(() => {
+    pendingAssistantMessagesRef.current = pendingAssistantMessages;
+  }, [pendingAssistantMessages]);
+  
+  // Flush pending messages when thinking streaming completes
+  const handleStreamingComplete = useCallback(() => {
+    if (pendingAssistantMessagesRef.current.length > 0) {
+      setMessages((prev) => [...prev, ...pendingAssistantMessagesRef.current]);
+      setPendingAssistantMessages([]);
+    }
+  }, []);
 
   const chatMutation = useMutation({
     mutationFn: async (request: NextRequest) => {
@@ -80,15 +97,19 @@ export default function Home() {
     onSuccess: (data) => {
       setState(data.state);
       
-      data.assistantMessages.forEach((msg) => {
-        setMessages((prev) => [...prev, msg]);
-      });
-
-      data.thinkingSteps.forEach((step, index) => {
-        setTimeout(() => {
-          setThinkingSteps((prev) => [...prev, step]);
-        }, index * 300);
-      });
+      // Queue thinking steps for sequential streaming
+      if (data.thinkingSteps.length > 0) {
+        // Add all thinking steps at once - ThinkingPanel handles sequential streaming
+        setThinkingSteps((prev) => [...prev, ...data.thinkingSteps]);
+        
+        // Queue assistant messages to show AFTER thinking completes
+        setPendingAssistantMessages((prev) => [...prev, ...data.assistantMessages]);
+      } else {
+        // No thinking steps - show assistant messages immediately
+        data.assistantMessages.forEach((msg) => {
+          setMessages((prev) => [...prev, msg]);
+        });
+      }
 
       if (data.uiHints?.showReportForCompanyId) {
         setSelectedCompanyId(data.uiHints.showReportForCompanyId);
@@ -522,7 +543,7 @@ export default function Home() {
           </div>
 
           <aside className="hidden lg:flex w-96 flex-col border-l border-border">
-            <ThinkingPanel steps={thinkingSteps} isProcessing={isProcessing} className="flex-1" />
+            <ThinkingPanel steps={thinkingSteps} isProcessing={isProcessing} className="flex-1" onStreamingComplete={handleStreamingComplete} />
           </aside>
 
           <div className="flex lg:hidden flex-1 flex-col overflow-hidden">
@@ -565,7 +586,7 @@ export default function Home() {
                 </ChatWindow>
               </TabsContent>
               <TabsContent value="thinking" className="flex-1 overflow-hidden m-0">
-                <ThinkingPanel steps={thinkingSteps} isProcessing={isProcessing} className="h-full" />
+                <ThinkingPanel steps={thinkingSteps} isProcessing={isProcessing} className="h-full" onStreamingComplete={handleStreamingComplete} />
               </TabsContent>
             </Tabs>
           </div>

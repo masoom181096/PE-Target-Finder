@@ -1,0 +1,177 @@
+Bug: Agent Thinking is streaming all steps in parallel. I want:
+ 
+1) Thinking steps to stream **one after another**, not simultaneously.
+2) Slower typing speed.
+3) Assistant chat messages to appear **only after all thinking steps for that response have finished streaming**.
+ 
+Implement this purely on the frontend.
+ 
+================================================
+1. State shape (Thinking)
+================================================
+ 
+In the ThinkingPanel logic, introduce these React states:
+ 
+- thinkingQueue: ThinkingStep[]          // steps waiting to be streamed
+- displayedSteps: DisplayedStep[]        // steps shown in UI
+- isStreaming: boolean
+- activeStepIndex: number                // index into thinkingQueue
+- activeCharIndex: number                // character index in current step
+- pendingAssistantMessages: AssistantMessage[]  // chat messages to show AFTER thinking
+ 
+Types:
+ 
+  interface ThinkingStep {
+    id: string;
+    phase: string;
+    text: string;
+  }
+ 
+  interface DisplayedStep {
+    id: string;
+    phase: string;
+    fullText: string;
+    shownText: string;
+  }
+ 
+ 
+================================================
+2. When new response comes from backend
+================================================
+ 
+In the place where we handle /api/chat/next responses:
+ 
+- Do NOT immediately push assistantMessages into the chat UI.
+- Instead:
+ 
+  setThinkingQueue(prev => [...prev, ...response.thinkingSteps]);
+  setPendingAssistantMessages(prev => [...prev, ...response.assistantMessages]);
+ 
+- If not already streaming:
+ 
+  if (!isStreaming && response.thinkingSteps.length > 0) {
+    setIsStreaming(true);
+    setActiveStepIndex(0);
+    setActiveCharIndex(0);
+  }
+ 
+The chat window should only show older messages + user messages at this point, not the new assistant messages yet.
+ 
+ 
+================================================
+3. Sequential streaming effect
+================================================
+ 
+In ThinkingPanel (or a shared hook):
+ 
+- Use a single `useEffect` with setInterval that **only advances one step at a time**.
+ 
+Example logic (simplify to this behaviour, actual code can differ):
+ 
+  useEffect(() => {
+    if (!isStreaming) return;
+    if (thinkingQueue.length === 0) return;
+ 
+    const interval = setInterval(() => {
+      setDisplayedSteps(prevDisplayed => {
+        const queue = thinkingQueueRef.current; // use ref or closure
+ 
+        if (activeStepIndexRef.current >= queue.length) {
+          // all steps done
+          clearInterval(interval);
+          setIsStreaming(false);
+ 
+          // flush pending assistant messages into chat HERE
+          flushPendingAssistantMessages();
+          return prevDisplayed;
+        }
+ 
+        const currentStep = queue[activeStepIndexRef.current];
+ 
+        // ensure this step exists in displayedSteps
+        let displayed = [...prevDisplayed];
+        let stepIndex = displayed.findIndex(d => d.id === currentStep.id);
+        if (stepIndex === -1) {
+          displayed.push({
+            id: currentStep.id,
+            phase: currentStep.phase,
+            fullText: currentStep.text,
+            shownText: "",
+          });
+          stepIndex = displayed.length - 1;
+        }
+ 
+        const d = displayed[stepIndex];
+        const nextCharIndex = activeCharIndexRef.current + 1;
+        const nextShown = currentStep.text.slice(0, nextCharIndex);
+ 
+        displayed[stepIndex] = {
+          ...d,
+          shownText: nextShown,
+        };
+ 
+        if (nextCharIndex >= currentStep.text.length) {
+          // move to next step
+          activeStepIndexRef.current += 1;
+          activeCharIndexRef.current = 0;
+        } else {
+          activeCharIndexRef.current = nextCharIndex;
+        }
+ 
+        return displayed;
+      });
+    }, 50); // slower speed (e.g. 40–70ms per char)
+ 
+    return () => clearInterval(interval);
+  }, [isStreaming]);
+ 
+Notes:
+- Use refs (activeStepIndexRef, activeCharIndexRef, thinkingQueueRef) to avoid stale closures.
+- Only one interval should run at a time.
+ 
+ 
+================================================
+4. Flushing assistant messages after thinking
+================================================
+ 
+Create a helper:
+ 
+  const flushPendingAssistantMessages = () => {
+    setChatMessages(prev => [
+      ...prev,
+      ...pendingAssistantMessagesRef.current,
+    ]);
+    setPendingAssistantMessages([]); // clear
+  };
+ 
+Call this **once**, at the moment we detect all thinking steps are done (inside the interval logic above).
+ 
+Result:
+- New assistant messages for a response only appear AFTER the entire set of thinking steps has streamed.
+ 
+ 
+================================================
+5. Speed
+================================================
+ 
+To slow things down:
+ 
+- Use an interval of 40–70 ms instead of 10–20 ms.
+- Advance by exactly 1 character per tick (no batching).
+ 
+This will make each step visibly type out before the next one starts.
+ 
+ 
+================================================
+6. Important behaviour
+================================================
+ 
+- For a given backend response:
+ 
+  - All thinkingSteps are queued.
+  - We stream them **in order**, fully, **one step at a time**.
+  - Only after the last step is fully displayed do we show the assistantMessages in chat.
+ 
+- For the next backend response:
+  - Its thinkingSteps are appended to thinkingQueue.
+  - Streaming for the next block only starts when the previous block is fully done.
