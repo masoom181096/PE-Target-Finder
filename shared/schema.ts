@@ -69,7 +69,54 @@ export type Phase =
   | "shortlist"
   | "comparison"
   | "dueDiligence"
-  | "reportChosen";
+  | "reportChosen"
+  | "taskCompleted";
+
+// Risk Assessment Types
+export type RiskBucketId =
+  | "liability"
+  | "nonSolicitation"
+  | "termination"
+  | "personnel"
+  | "stepIn"
+  | "penalty"
+  | "nonCompete"
+  | "confidentiality"
+  | "paymentTerms"
+  | "intellectualProperty"
+  | "indemnities";
+
+export interface RiskBucketDefinition {
+  id: RiskBucketId;
+  label: string;
+  weightPercent: number;
+  maxScore: number;
+}
+
+export interface RiskSubClauseOption {
+  score: number;
+  description: string;
+}
+
+export interface RiskSubClauseDefinition {
+  id: string;
+  bucketId: RiskBucketId;
+  label: string;
+  maxScore: number;
+  options: RiskSubClauseOption[];
+}
+
+export type RiskGrade = "Low" | "Medium" | "High";
+
+export interface CompanyRiskScores {
+  companyId: string;
+  clauseScores: Record<string, number>;
+  bucketTotals: Record<RiskBucketId, number>;
+  rawTotal: number;
+  normalizedPercent: number;
+  grade: RiskGrade;
+  keyContributors: string[];
+}
 
 // Restrictions payload from frontend
 export interface RestrictionsPayload {
@@ -332,6 +379,7 @@ export interface ConversationState {
   shortlist: ShortlistedCompanyScore[];
   chosenCompanyIds: string[];
   reportTemplate: ReportTemplate;
+  finalSelectedCompanyId?: string;
 }
 
 // Default fund mandate with empty arrays
@@ -419,6 +467,7 @@ export interface CompanyReport {
   };
   operationalAndValueCreation: string[];
   exitFeasibility: string[];
+  riskAssessment?: CompanyRiskScores;
 }
 
 // Zod schemas for validation
@@ -517,6 +566,7 @@ export const phaseLabels: Record<Phase, string> = {
   comparison: "Review & Select",
   dueDiligence: "Due Diligence",
   reportChosen: "Report",
+  taskCompleted: "Completed",
 };
 
 // Phase order for progress display
@@ -531,4 +581,5 @@ export const phaseOrder: Phase[] = [
   "comparison",
   "dueDiligence",
   "reportChosen",
+  "taskCompleted",
 ];

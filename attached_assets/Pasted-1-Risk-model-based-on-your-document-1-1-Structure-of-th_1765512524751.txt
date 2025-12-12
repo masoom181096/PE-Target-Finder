@@ -1,0 +1,240 @@
+1. Risk model based on your document
+1.1. Structure of the risk matrix
+From the doc, you have 11 risk buckets, each broken into sub-clauses with discrete scores (1 = best / lowest risk, higher = worse). Each bucket also has a % weight in the header.
+Buckets:
+Liability (25%) – subclauses A–D
+Non-Solicitation (5%)
+Termination (20%) – subclauses A–E
+Personnel (5%) – A–B
+Step-in (7%)
+Penalty / Liquidated Damages (5%)
+Non-compete (10%) – A–B
+Confidentiality (20%)
+Payment Terms (5%) – A–B
+Intellectual Property (10%) – A–B
+Indemnities (10%) – A–B
+Each subclause has a scoring rubric like:
+“Ideal / acceptable” → 1
+“Compromise / some risk” → 2
+“Heavier risk” → 3
+In some cases (e.g. indirect damages, termination-for-breach) “worst case” → 4 or 5.
+In your worked example, every subclause is taken at its worst option, giving:
+Liability total = 13
+Non-Solicitation total = 4
+Termination total = 17
+Personnel = 5
+Step-in = 4
+Penalty = 3
+Non-compete = 7
+Confidentiality = 3
+Payment = 7
+IP = 4
+Indemnities = 5
+Total = 72, which is the maximum possible risk score (all clauses worst-case).
+So we can safely treat:
+rawRiskScore ∈ [best, 72], where lower = better.
+1.2. Data model
+On the backend, define:
+export type RiskBucketId =
+  | "liability"
+  | "nonSolicitation"
+  | "termination"
+  | "personnel"
+  | "stepIn"
+  | "penalty"
+  | "nonCompete"
+  | "confidentiality"
+  | "paymentTerms"
+  | "intellectualProperty"
+  | "indemnities";
+export interface RiskBucketDefinition {
+  id: RiskBucketId;
+  label: string;
+  weightPercent: number; // as per doc: 25, 5, 20, ...
+  maxScore: number;      // bucket max from the doc
+}
+export interface RiskSubClauseDefinition {
+  id: string;
+  bucketId: RiskBucketId;
+  label: string;
+  maxScore: number;      // max score for this clause (3, 4, or 5)
+  options: { score: number; description: string }[];
+}
+Populate them directly from your doc, e.g.:
+const RISK_BUCKETS: RiskBucketDefinition[] = [
+  { id: "liability",          label: "Liability",                 weightPercent: 25, maxScore: 13 },
+  { id: "nonSolicitation",    label: "Non-Solicitation",          weightPercent: 5,  maxScore: 4  },
+  { id: "termination",        label: "Termination",               weightPercent: 20, maxScore: 17 },
+  { id: "personnel",          label: "Personnel",                 weightPercent: 5,  maxScore: 5  },
+  { id: "stepIn",             label: "Step-in",                   weightPercent: 7,  maxScore: 4  },
+  { id: "penalty",            label: "Penalty / LDs",             weightPercent: 5,  maxScore: 3  },
+  { id: "nonCompete",         label: "Non-compete",               weightPercent: 10, maxScore: 7  },
+  { id: "confidentiality",    label: "Confidentiality",           weightPercent: 20, maxScore: 3  },
+  { id: "paymentTerms",       label: "Payment Terms",             weightPercent: 5,  maxScore: 7  },
+  { id: "intellectualProperty", label: "Intellectual Property",   weightPercent: 10, maxScore: 4  },
+  { id: "indemnities",        label: "Indemnities",               weightPercent: 10, maxScore: 5  },
+];
+const RISK_SUBCLAUSES: RiskSubClauseDefinition[] = [
+  // 1. Liability (A–D)
+  {
+    id: "liability_directDamages",
+    bucketId: "liability",
+    label: "Direct damages cap",
+    maxScore: 3,
+    options: [
+      { score: 1, description: "Liability ≤ 24 months of fees or ≤ 3x SOW value" },
+      { score: 2, description: "Liability > 24 months of fees or > 3x SOW value" },
+      { score: 3, description: "Completely uncapped / unlimited liability" },
+    ],
+  },
+  {
+    id: "liability_indirectDamages",
+    bucketId: "liability",
+    label: "Indirect damages carve-out",
+    maxScore: 4,
+    options: [
+      { score: 1, description: "Indirect damages fully carved out" },
+      { score: 2, description: "Carved out only for PI/death/property/fraud/misconduct/applicable law" },
+      { score: 3, description: "Carved out for IP/Data/Confidentiality etc but linked to direct cap" },
+      { score: 4, description: "No carve-out for indirect damages" },
+    ],
+  },
+  // ... add Liability C, D and all other buckets per the doc
+];
+Per-company selections will be stored as:
+export interface CompanyRiskScores {
+  companyId: string;
+  clauseScores: Record<string, number>; // key = subClauseId, value = selected score
+  bucketTotals: Record<RiskBucketId, number>;
+  rawTotal: number;        // sum of bucketTotals
+  normalizedPercent: number; // (rawTotal / 72) * 100
+  grade: "Low" | "Medium" | "High";
+}
+1.3. Calculation logic
+For a given company:
+For each RiskSubClauseDefinition, you have a score (1..max).
+For each bucket:
+Raw total risk:
+Normalize to 0–100:
+Classify:
+You can tweak the thresholds, but don’t hide the formula – show it in the UI so the analyst sees exactly how  the risk factor was produced.
+2. Integrate risk factor into Due Diligence for the 2 selected companies
+You already changed the flow so:
+Shortlist → analyst selects at least 2 companies → phase = "dueDiligence" → reports generated for both.
+Now we extend that phase to:
+Generate / fetch the CompanyReport for each selected company.
+Compute the CompanyRiskScores for each.
+Show a side-by-side risk table + full breakdown of the calculation.
+2.1. Extend CompanyReport
+Update the existing CompanyReport type:
+export interface CompanyReport {
+  header: { /* as before */ };
+  executiveSummary: string[];
+  countryAnalysis: { /* as before */ };
+  financialAnalysis: { /* as before */ };
+  operationalAndValueCreation: string[];
+  exitFeasibility: string[];
+  // NEW:
+  riskAssessment: CompanyRiskScores;
+}
+For the MVP, you don’t have to “parse” a real contract; you can:
+Pre-define clauseScores for Mantla / Instaworks / Disprztech in a static file, OR
+Let the analyst manually choose options per clause in a small DD form.
+But the resulting report must include:
+Bucket totals
+Raw total
+Normalized percent
+Grade
+2.2. Due Diligence UI
+In phase = "dueDiligence":
+Show:
+Tabs or side-by-side cards – one per selected company.
+Inside each:
+Report header (company name, sector, HQ, sources).
+Standard sections: Exec Summary, Country, Financials, etc.
+A dedicated “Contract Risk Assessment” section:
+A table like:
+Bucket	Weight	Company score (raw)	Max	Normalized bucket score
+Liability	25%	8	13	8/13 × 25 = 15.4%
+Non-Solicitation	5%	2	4	2/4 × 5 = 2.5%
+…	…	…	…	…
+Total	100%	38	72	**(38/72 × 100) = 52.8%
+A text summary:
+“Total contract risk score = 38/72 ≈ 53% → Medium risk.
+Key contributors: Termination (17/17), Non-compete (6/7).”
+Agent thinking during this phase should narrate each step of the calculation, for example:
+“Parsing liability clause → score 2/3 for direct damages, 3/4 for indirect damages…”
+“Liability bucket total = 9/13 (≈ 69% of max, weighted 25%).”
+“Aggregating all buckets: overall risk score = 52.8% → Medium risk.”
+Make these thinking messages stream letter-by-letter like you already set up.
+2.3. Comparative view
+On top of individual reports, provide a comparison strip:
+Company	Raw Risk Score	Risk %	Grade
+Mantla	34 / 72	47%	Medium
+Instaworks	28 / 72	39%	Low–Med
+(Values are examples; you decide the actual demo numbers.)
+The system does NOT auto-choose the winner, but it can say in the explanation:
+“Based purely on contract risk, Instaworks has a slightly lower risk factor (39%) vs Mantla (47%). You may still prefer Mantla if its growth and strategic positioning outweigh the risk.”
+This keeps decision authority with the analyst, as you wanted.
+3. “Task completed” state after the analyst decides
+Once the analyst sees the reports + risk comparison, they will pick one of the two (or three) as their preferred target.
+3.1. State changes
+Add to ConversationState:
+interface ConversationState {
+  // ...
+  chosenCompanyIds: string[];        // for due diligence (2+)
+  finalSelectedCompanyId?: string;   // once analyst decides
+  phase: Phase;
+}
+type Phase =
+  | "welcome"
+  | "fundMandate"
+  | "restrictions"
+  | "countryScreening"
+  | "weights"
+  | "thresholds"
+  | "shortlist"
+  | "comparison"
+  | "dueDiligence"
+  | "taskCompleted";   // NEW
+3.2. UI interaction
+In the DD view, for each company card/tab:
+Add a button:
+“Select Mantla as preferred target”
+When the analyst clicks this:
+POST to backend:
+Backend logic:
+Set state.finalSelectedCompanyId = "mantla";
+Set state.phase = "taskCompleted";
+Add a thinking step:
+“Recording analyst decision: Mantla selected as preferred target, with contract risk score 47% vs Instaworks 39%.”
+3.3. Task Completed screen
+In phase = "taskCompleted":
+Show a clear success banner:
+Big check icon, title: “Screening & Due Diligence Completed”.
+Summary content:
+Chosen company: name, sector, HQ.
+Key reasons (pull from report executive summary + maybe 3 bullets combining financial + risk).
+Comparison snippet:
+“Compared candidates: Mantla (risk 47%, Medium) vs Instaworks (39%, Low–Medium).
+You selected Mantla as the preferred PE target for further IC evaluation.”
+Buttons:
+“Download full DD pack (PDF)” (even if in MVP it just triggers a placeholder).
+“Start a new search” (resets state).
+Final assistant message in chat:
+“Understood. I’ve marked Mantla Platform as your preferred target and completed this screening task.
+If you’d like, we can now either start a new mandate or deepen the diligence (e.g., management meetings, customer calls, tech DD).”
+This gives you a clean end-state you can show in demos: the agent guided the mandate, screened, short-listed, compared, ran risk calculations, and the analyst made a documented decision.
+ 
+{
+  "sessionId": "...",
+  "finalChoiceCompanyId": "mantla"
+}
+let grade: "Low" | "Medium" | "High";
+if (normalizedPercent <= 35) grade = "Low";
+else if (normalizedPercent <= 65) grade = "Medium";
+else grade = "High";
+const MAX_TOTAL = 72;
+const normalizedPercent = (rawTotal / MAX_TOTAL) * 100;
+const rawTotal = sum(bucketTotal across all buckets); // 0–72, realistically > 20
+const bucketTotal = sum(scores of all subclauses in that bucket);
