@@ -1,14 +1,44 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, RotateCcw, FileText, ArrowRight } from "lucide-react";
+import { CheckCircle2, RotateCcw, FileText, ArrowRight, Download, Loader2 } from "lucide-react";
 
 interface TaskCompletedProps {
   companyName: string;
   companyId: string;
+  sessionId: string;
   onStartNew?: () => void;
 }
 
-export function TaskCompleted({ companyName, companyId, onStartNew }: TaskCompletedProps) {
+export function TaskCompleted({ companyName, companyId, sessionId, onStartNew }: TaskCompletedProps) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadReport = async () => {
+    if (!companyId) return;
+    
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`/api/report/download?sessionId=${sessionId}&companyId=${companyId}`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to download report");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${companyName.replace(/\s+/g, "_")}_PE_Report.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download error:", error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
   return (
     <div className="w-full max-w-2xl mx-auto py-8" data-testid="task-completed">
       <div className="flex flex-col items-center text-center mb-8">
@@ -63,8 +93,32 @@ export function TaskCompleted({ companyName, companyId, onStartNew }: TaskComple
         </CardContent>
       </Card>
 
-      {onStartNew && (
-        <div className="flex justify-center">
+      <div className="flex flex-col gap-4 items-center">
+        {companyId ? (
+          <Button
+            onClick={handleDownloadReport}
+            disabled={isDownloading}
+            data-testid="button-download-report"
+          >
+            {isDownloading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Download Final Report
+              </>
+            )}
+          </Button>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Select a preferred company in the due diligence view to enable report download.
+          </p>
+        )}
+
+        {onStartNew && (
           <Button
             variant="outline"
             onClick={onStartNew}
@@ -73,8 +127,8 @@ export function TaskCompleted({ companyName, companyId, onStartNew }: TaskComple
             <RotateCcw className="mr-2 h-4 w-4" />
             Start New Screening
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

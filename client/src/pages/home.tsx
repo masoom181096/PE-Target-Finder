@@ -401,6 +401,7 @@ export default function Home() {
             <TaskCompleted
               companyName={selectedCompany?.name || "Selected Company"}
               companyId={state.finalSelectedCompanyId || ""}
+              sessionId={sessionId}
               onStartNew={handleNewSession}
             />
           </div>
