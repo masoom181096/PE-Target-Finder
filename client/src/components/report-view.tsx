@@ -17,6 +17,7 @@ import {
   ChevronUp,
   Loader2,
   Target,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +57,7 @@ import type { CompanyReport, ReportTemplate, Thresholds } from "@shared/schema";
 import { reportTemplateLabels, reportTemplateDescriptions, defaultThresholds } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { ContractRiskSection } from "@/components/contract-risk-section";
 
 interface CompanyDetails {
   id: string;
@@ -336,6 +338,7 @@ const sections = [
   { id: "financial-analysis", label: "Financial Analysis", icon: BarChart3 },
   { id: "operational", label: "Operational Strength", icon: Zap },
   { id: "exit-feasibility", label: "Exit Feasibility", icon: DollarSign },
+  { id: "contract-risk", label: "Contract Risk", icon: AlertTriangle },
 ];
 
 export function ReportView({ report, onBack, className, selectedTemplate, onTemplateChange, companyId, thresholds = defaultThresholds, embedded = false }: ReportViewProps) {
@@ -540,6 +543,11 @@ export function ReportView({ report, onBack, className, selectedTemplate, onTemp
                       onOpenChange={setFinancialChartOpen}
                     />
                   </div>
+                )}
+                {sectionKey === "exitFeasibility" && report.riskAssessment && (
+                  <section id="contract-risk" className="mt-8">
+                    <ContractRiskSection riskAssessment={report.riskAssessment} />
+                  </section>
                 )}
               </div>
             );
