@@ -9,6 +9,7 @@ import type {
   ScoringWeights,
   Thresholds,
   RestrictionsPayload,
+  SubParameterUserInput,
 } from "@shared/schema";
 import { initialConversationState, defaultScoringWeights, defaultThresholds } from "@shared/schema";
 import { scoreAndRankCompanies } from "./scoring";
@@ -223,11 +224,21 @@ export function processWeights(sessionId: string, weights: ScoringWeights): Next
   };
 }
 
-export function processThresholds(sessionId: string, thresholds: Thresholds): NextResponse {
+export function processThresholds(
+  sessionId: string, 
+  payload: Thresholds | { subParamInputs?: SubParameterUserInput[] }
+): NextResponse {
   const state = getOrCreateSession(sessionId);
-  state.thresholds = thresholds;
   
-  const shortlist = scoreAndRankCompanies(state.scoringWeights, state.thresholds);
+  // Handle new sub-parameter inputs format
+  if ("subParamInputs" in payload && payload.subParamInputs) {
+    state.subParamInputs = payload.subParamInputs;
+  } else {
+    // Backward compatibility: handle old Thresholds format
+    state.thresholds = payload as Thresholds;
+  }
+  
+  const shortlist = scoreAndRankCompanies(state.scoringWeights, state.thresholds || {});
   state.shortlist = shortlist;
   state.phase = "shortlist";
   updateSession(sessionId, state);
@@ -235,6 +246,11 @@ export function processThresholds(sessionId: string, thresholds: Thresholds): Ne
   const shortlistSummary = shortlist
     .map((c) => `• Rank ${c.rank}: ${c.name} (${c.country}) — Score: ${c.score}/100`)
     .join("\n");
+
+  const filledCount = state.subParamInputs?.length || 0;
+  const thresholdDescription = filledCount > 0
+    ? `Applying ${filledCount} user-defined sub-parameter thresholds...`
+    : `Applying default thresholds based on fund mandate...`;
 
   return {
     state,
@@ -244,7 +260,7 @@ export function processThresholds(sessionId: string, thresholds: Thresholds): Ne
       ),
     ],
     thinkingSteps: [
-      createThinkingStep("thresholds", `Applying hard filters: recurring revenue ≥${thresholds.recurringRevenueMin}%, Debt/EBITDA ≤${thresholds.debtToEbitdaMax}x...`),
+      createThinkingStep("thresholds", thresholdDescription),
       createThinkingStep("thresholds", "Filtering companies in India and Singapore from Pitchbook/Refinitiv universe..."),
       createThinkingStep("shortlist", "Computing composite scores using configured weights..."),
       createThinkingStep("shortlist", `Screening complete. ${shortlist.length} companies passed all thresholds.`),

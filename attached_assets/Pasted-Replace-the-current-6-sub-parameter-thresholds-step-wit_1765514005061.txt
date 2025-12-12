@@ -1,0 +1,204 @@
+Replace the current "6 sub-parameter thresholds" step with a proper 10-parameter navigator for all 53 sub-parameters, using the following UX:
+ 
+========================================
+HIGH-LEVEL UX
+========================================
+ 
+In the Thresholds phase (phase === "thresholds"):
+ 
+- The screen is split into two main panels:
+ 
+  LEFT: a vertical list of the 10 main parameters (like a sidebar).
+  RIGHT: the active parameter's sub-parameters as editable rows.
+ 
+- Only ONE parameter's sub-parameters are visible at a time.
+- Clicking another parameter in the sidebar:
+  - Saves what the user entered for the current parameter.
+  - Closes the current list.
+  - Opens the new parameter's sub-parameter list (with any previously entered values already filled, not reset).
+ 
+- Every sub-parameter row has an optional input:
+  - If the user LEAVES IT BLANK → that sub-parameter is treated as "auto / inferred from fund mandate".
+  - If the user fills it → the backend uses that input to override the default.
+ 
+- This step FULLY replaces the old "6 sub-parameters" thresholds form.
+ 
+ 
+========================================
+DATA MODEL (REUSE & EXTEND)
+========================================
+ 
+You already have / should have this from earlier instructions, but make sure it exists:
+ 
+  export type TopLevelParamId =
+    | "qualityOfEarnings"
+    | "companyFinancial"
+    | "industryAttractiveness"
+    | "competitivePositioning"
+    | "managementGovernance"
+    | "operationalEfficiency"
+    | "customerMarket"
+    | "productStrength"
+    | "exitFeasibility"
+    | "scalabilityPotential";
+ 
+  export type SubParamType = "numeric" | "qualitative";
+  export type Direction = "higherIsBetter" | "lowerIsBetter" | "none";
+ 
+  export interface SubParameterDefinition {
+    id: string;
+    label: string;
+    category: TopLevelParamId;
+    type: SubParamType;
+    direction: Direction;
+  }
+ 
+There must be **53** entries in SUB_PARAMETERS, matching Masoom's matrix (we already listed them previously).
+ 
+For user inputs, define:
+ 
+  export interface SubParameterUserInput {
+    subParamId: string;
+    // value is optional. If undefined, the tool will infer importance from the fund mandate.
+    // For numeric type, treat 'value' as a numeric threshold or target.
+    // For qualitative, treat 'value' as a 1–5 importance score (string or number).
+    value?: number;
+  }
+ 
+  export interface ConversationState {
+    ...
+    // store all sub-parameter inputs here
+    subParamInputs: SubParameterUserInput[];
+  }
+ 
+Helper:
+ 
+  function getSubParamInput(state: ConversationState, id: string): SubParameterUserInput | undefined { ... }
+ 
+ 
+========================================
+FRONTEND COMPONENTS
+========================================
+ 
+Create a new component for this step, e.g. `SubParameterThresholds.tsx`.
+ 
+### 1) Sidebar (left)
+ 
+- A simple vertical list in this order:
+ 
+  1. Quality of Earnings & Financial Health
+  2. Company Financial Performance
+  3. Industry Attractiveness
+  4. Competitive Positioning
+  5. Management Team & Governance
+  6. Operational Efficiency
+  7. Customer & Market Dynamics
+  8. Product / Service Strength
+  9. Exit Feasibility
+  10. Scalability Potential
+ 
+- Map these to TopLevelParamId values.
+- The currently selected parameter should be visually highlighted.
+- Clicking a parameter sets `activeCategory` in component state.
+ 
+### 2) Sub-Parameter Panel (right)
+ 
+- When `activeCategory` = e.g. "industryAttractiveness":
+ 
+  - Filter `SUB_PARAMETERS` by `category === activeCategory`.
+  - Render a table or list; one row per sub-parameter.
+ 
+  - Each row shows:
+    - Label (e.g. "Market size").
+    - For **numeric** type:
+        - A single numeric input field (or two if you prefer min/max, but single is OK for now).
+          Placeholder: "Leave blank to let agent infer".
+    - For **qualitative** type:
+        - A small numeric input 1–5, or a dropdown:
+          - 1 = Very Low importance
+          - ...
+          - 5 = Very High importance
+          Placeholder: "Leave blank to let agent infer".
+ 
+- The component should read existing values from `state.subParamInputs` so that when you switch categories and come back, the values remain.
+ 
+- On every change, update `subParamInputs` in the frontend state and make sure the next call to the backend includes the full updated list.
+ 
+### 3) Navigation
+ 
+At the bottom of the right panel:
+ 
+- A "Next Parameter" button that jumps to the next category in the sidebar.
+- A "Previous Parameter" button to go back.
+- A primary "Continue to Shortlist" button that:
+ 
+  - Validates nothing (all fields are optional).
+  - Sends the entire set of `subParamInputs` to the backend and pushes phase to "shortlist".
+ 
+ 
+========================================
+WIRED PAYLOAD TO BACKEND
+========================================
+ 
+In the Thresholds phase, when user clicks "Continue to Shortlist":
+ 
+POST /api/chat/next should include:
+ 
+  {
+    sessionId,
+    phase: "thresholds",
+    subParamInputs: [
+      { subParamId: "debtLeverage", value: 2.5 },
+      { subParamId: "industryGrowth", value: 15 },
+      { subParamId: "marketSize", value: 3 },
+      ...
+      // Only include entries where the user actually entered a value.
+    ]
+  }
+ 
+In the backend handler for phase === "thresholds":
+ 
+- Save `state.subParamInputs = body.subParamInputs || []`.
+- For any sub-parameter NOT present in `subParamInputs`, treat as "auto":
+   - In your scoring logic later, infer its importance / threshold from fundMandate (or apply default values).
+- Then advance to phase "shortlist" and proceed as before.
+ 
+ 
+========================================
+SCORING LOGIC (HOW TO USE BLANKS)
+========================================
+ 
+In whatever scoring function you use (e.g. computeCompositeScore):
+ 
+- For each sub-parameter definition:
+ 
+  const userInput = state.subParamInputs.find(x => x.subParamId === def.id);
+ 
+  if (!userInput || userInput.value == null) {
+    // AUTO case: derive weight / threshold from the fund mandate.
+    // For now, simple heuristic is fine, e.g.:
+    // - If the fund cares about growth, bump industryGrowth etc.
+  } else {
+    // USER case:
+    // - If def.type === "numeric": treat value as desired minimum (for higherIsBetter) or maximum (for lowerIsBetter).
+    // - If def.type === "qualitative": treat numeric 1–5 as relative weight inside that top-level parameter.
+  }
+ 
+Do NOT block the user from proceeding if many are left blank.
+ 
+========================================
+REMOVAL OF OLD 6-FIELD THRESHOLDS
+========================================
+ 
+- Completely delete the old form that only handled:
+  recurringRevenueMin, debtToEbitdaMax, revenueGrowthMin, fcfConversionMin, industryGrowthMin, maxCustomerConcentration.
+- Any existing references to those six fields in ConversationState or scoring should be replaced with the new sub-parameter logic.
+ 
+After this change:
+ 
+- The "Thresholds" step should show a left-side list of the 10 parameters.
+- Clicking each shows its sub-parameters on the right.
+- The user can step through all 10, filling only what they care about.
+- Empty fields are treated as "agent will infer from fund mandate".
+ 
+Implement this now.

@@ -7,7 +7,7 @@ import { PhaseProgress, PhaseProgressHorizontal } from "@/components/phase-progr
 import { FundMandateForm } from "@/components/fund-mandate-form";
 import { RestrictionsForm } from "@/components/restrictions-form";
 import { WeightsForm } from "@/components/weights-form";
-import { ThresholdsForm } from "@/components/thresholds-form";
+import { SubParameterThresholds } from "@/components/sub-parameter-thresholds";
 import { CountryScreeningCard } from "@/components/country-screening-card";
 import { ShortlistCard } from "@/components/shortlist-card";
 import { RecommendationsTable } from "@/components/recommendations-table";
@@ -32,8 +32,9 @@ import type {
   SavedSession,
   ReportTemplate,
   RestrictionsPayload,
+  SubParameterUserInput,
 } from "@shared/schema";
-import { initialConversationState, phaseLabels } from "@shared/schema";
+import { initialConversationState, phaseLabels, defaultThresholds } from "@shared/schema";
 import type { TemplatedReportData } from "@/components/report-view";
 
 function getSessionId(): string {
@@ -197,13 +198,16 @@ export default function Home() {
     });
   };
 
-  const handleThresholdsSubmit = (data: Thresholds) => {
-    const summary = `Thresholds set: Recurring Revenue ≥${data.recurringRevenueMin}%, Debt/EBITDA ≤${data.debtToEbitdaMax}x, Revenue Growth ≥${data.revenueGrowthMin}%, FCF Conversion ≥${data.fcfConversionMin}%`;
+  const handleSubParamSubmit = (inputs: SubParameterUserInput[]) => {
+    const filledCount = inputs.filter((i) => i.value !== undefined).length;
+    const summary = filledCount > 0
+      ? `Sub-parameter thresholds configured (${filledCount} parameters set)`
+      : "Proceeding with automatic threshold inference";
     setMessages((prev) => [...prev, { role: "user", text: summary }]);
     chatMutation.mutate({
       sessionId,
       userMessage: summary,
-      formData: { type: "thresholds", data },
+      formData: { type: "thresholds", data: { subParamInputs: inputs } },
     });
   };
 
@@ -260,6 +264,7 @@ export default function Home() {
       restrictions: initialConversationState.restrictions,
       scoringWeights: (session.scoringWeights as ScoringWeights) || initialConversationState.scoringWeights,
       thresholds: (session.thresholds as Thresholds) || initialConversationState.thresholds,
+      subParamInputs: initialConversationState.subParamInputs,
       subParamPreferences: initialConversationState.subParamPreferences,
       shortlist: (session.shortlist as ConversationState["shortlist"]) || [],
       chosenCompanyIds: (session.chosenCompanyIds as string[]) || (session.chosenCompanyId ? [session.chosenCompanyId] : []),
@@ -314,10 +319,10 @@ export default function Home() {
       case "thresholds":
         return (
           <div className="py-4">
-            <ThresholdsForm
-              onSubmit={handleThresholdsSubmit}
+            <SubParameterThresholds
+              onSubmit={handleSubParamSubmit}
               isLoading={isProcessing}
-              initialThresholds={state.thresholds}
+              initialInputs={state.subParamInputs}
             />
           </div>
         );
@@ -383,7 +388,7 @@ export default function Home() {
               companies={state.shortlist}
               reportTemplate={reportTemplate}
               onTemplateChange={handleTemplateChange}
-              thresholds={state.thresholds}
+              thresholds={state.thresholds || defaultThresholds}
               onSelectPreferred={handleSelectPreferred}
               preferredCompanyId={state.finalSelectedCompanyId}
             />
@@ -415,7 +420,7 @@ export default function Home() {
           selectedTemplate={reportTemplate}
           onTemplateChange={handleTemplateChange}
           companyId={selectedCompanyId}
-          thresholds={state.thresholds}
+          thresholds={state.thresholds || defaultThresholds}
         />
       </div>
     );

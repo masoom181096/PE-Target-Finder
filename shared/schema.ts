@@ -233,6 +233,39 @@ export interface SubParameterPreference {
   maxValue?: number;
 }
 
+// Sub-parameter user input for thresholds navigator
+export interface SubParameterUserInput {
+  subParamId: string;
+  value?: number; // Optional - if undefined, agent will infer from fund mandate
+}
+
+// Helper constants for parameter order and labels
+export const TOP_LEVEL_PARAM_ORDER: TopLevelParamId[] = [
+  "qualityOfEarnings",
+  "companyFinancial",
+  "industryAttractiveness",
+  "competitivePositioning",
+  "managementGovernance",
+  "operationalEfficiency",
+  "customerMarket",
+  "productStrength",
+  "exitFeasibility",
+  "scalabilityPotential",
+];
+
+export const TOP_LEVEL_PARAM_LABELS: Record<TopLevelParamId, string> = {
+  qualityOfEarnings: "Quality of Earnings & Financial Health",
+  companyFinancial: "Company Financial Performance",
+  industryAttractiveness: "Industry Attractiveness",
+  competitivePositioning: "Competitive Positioning",
+  managementGovernance: "Management Team & Governance",
+  operationalEfficiency: "Operational Efficiency",
+  customerMarket: "Customer & Market Dynamics",
+  productStrength: "Product / Service Strength",
+  exitFeasibility: "Exit Feasibility",
+  scalabilityPotential: "Scalability Potential",
+};
+
 // Report template types
 export type ReportTemplate = "growth" | "buyout" | "venture";
 
@@ -374,7 +407,8 @@ export interface ConversationState {
   fundMandate: FundMandate;
   restrictions: Restrictions;
   scoringWeights: ScoringWeights;
-  thresholds: Thresholds;
+  thresholds?: Thresholds; // Optional for backward compatibility
+  subParamInputs: SubParameterUserInput[]; // New comprehensive sub-parameter inputs
   subParamPreferences: SubParameterPreference[];
   shortlist: ShortlistedCompanyScore[];
   chosenCompanyIds: string[];
@@ -401,6 +435,7 @@ export const initialConversationState: ConversationState = {
   restrictions: defaultRestrictions,
   scoringWeights: defaultScoringWeights,
   thresholds: defaultThresholds,
+  subParamInputs: [],
   subParamPreferences: [],
   shortlist: [],
   chosenCompanyIds: [],
@@ -431,7 +466,7 @@ export interface NextRequest {
   userMessage?: string;
   formData?: {
     type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred";
-    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string } | { selectedCompanies: string[] };
+    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { subParamInputs: SubParameterUserInput[] } | { companyId: string } | { selectedCompanies: string[] };
   };
 }
 
