@@ -415,6 +415,7 @@ export interface ConversationState {
   chosenCompanyIds: string[];
   reportTemplate: ReportTemplate;
   finalSelectedCompanyId?: string;
+  infoRequestConfirmed?: boolean; // Tracks if email interest collection was completed
 }
 
 // Default fund mandate with empty arrays

@@ -397,6 +397,7 @@ export function processInfoRequestConfirm(sessionId: string): NextResponse {
     .join(" and ");
   
   state.phase = "dueDiligence";
+  state.infoRequestConfirmed = true;
   updateSession(sessionId, state);
 
   return {
