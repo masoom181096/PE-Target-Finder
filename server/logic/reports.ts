@@ -1,4 +1,5 @@
-import type { CompanyReport, ReportTemplate } from "@shared/schema";
+import type { CompanyReport, ReportTemplate, CompanyRiskScores } from "@shared/schema";
+import { calculateRiskScores } from "./riskCalculation";
 
 // Template-specific section ordering
 const templateSectionOrder: Record<ReportTemplate, string[]> = {
@@ -119,12 +120,15 @@ export function generateReport(companyId: string, templateType: ReportTemplate =
     }
   });
   
+  const riskAssessment = calculateRiskScores(companyId) ?? undefined;
+  
   return {
     ...baseReport,
     templateType,
     templateSubtitle: templateSubtitles[templateType],
     sectionOrder: templateSectionOrder[templateType],
     emphasisItems,
+    riskAssessment,
   };
 }
 
