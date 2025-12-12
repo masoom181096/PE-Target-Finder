@@ -15,6 +15,7 @@ import { CompanyComparison } from "@/components/company-comparison";
 import { ReportView } from "@/components/report-view";
 import { DueDiligenceReports } from "@/components/due-diligence-reports";
 import { TaskCompleted } from "@/components/task-completed";
+import { InfoRequestCard } from "@/components/info-request-card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionManager } from "@/components/session-manager";
 import { Button } from "@/components/ui/button";
@@ -248,6 +249,16 @@ export default function Home() {
     });
   };
 
+  const handleConfirmEmails = () => {
+    const message = "Confirmed - sending interest mails and starting due diligence";
+    setMessages((prev) => [...prev, { role: "user", text: message }]);
+    chatMutation.mutate({
+      sessionId,
+      userMessage: message,
+      formData: { type: "confirmEmails" },
+    });
+  };
+
   const handleNewSession = () => {
     localStorage.removeItem("pe-finder-session");
     window.location.reload();
@@ -378,6 +389,17 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+        );
+      case "infoRequest":
+        return (
+          <div className="py-4">
+            <InfoRequestCard
+              companies={state.shortlist}
+              chosenCompanyIds={state.chosenCompanyIds}
+              onConfirmEmails={handleConfirmEmails}
+              isLoading={isProcessing}
+            />
           </div>
         );
       case "dueDiligence":
