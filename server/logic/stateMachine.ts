@@ -52,6 +52,8 @@ export function processWelcome(sessionId: string): NextResponse {
       ),
     ],
     thinkingSteps: [
+      createThinkingStep("welcome", "gathering process flow from Capability Compass"),
+      createThinkingStep("welcome", "Analyzing required information and fields"),
       createThinkingStep("welcome", "Initializing PE screening session..."),
       createThinkingStep("welcome", "Loading target company database from Pitchbook, Crunchbase, and Refinitiv..."),
       createThinkingStep("fundMandate", "Preparing to capture fund mandate parameters..."),
@@ -354,6 +356,46 @@ export function processMultiCompanySelection(sessionId: string, selectedCompanie
     .join(" and ");
   
   state.chosenCompanyIds = selectedCompanies;
+  state.phase = "infoRequest";
+  updateSession(sessionId, state);
+
+  const emailDrafts = selectedCompanies.map((id) => {
+    const company = state.shortlist.find((c) => c.id === id);
+    return `**To: ${company?.name} Management Team**\n\nDear ${company?.name} team,\n\nWe are a Growth & Buyout fund interested in initiating due diligence on your company. We would like to request additional financial, operational, and legal documentation to support our evaluation process.\n\nPlease provide the following at your earliest convenience:\n• Audited financial statements (last 3 years)\n• Monthly management accounts (last 12 months)\n• Customer contracts and key commercial agreements\n• Organizational chart and key personnel details\n• Technology stack and IP documentation\n\nWe appreciate your cooperation and look forward to engaging further.\n\nBest regards,\nPE Target Finder Team`;
+  }).join("\n\n---\n\n");
+
+  return {
+    state,
+    assistantMessages: [
+      createAssistantMessage(
+        `I will now send interest mails to the shortlisted companies requesting additional information and documentation for due diligence.`
+      ),
+      createAssistantMessage(
+        `Review the draft emails below and confirm when I can proceed.\n\n${emailDrafts}`
+      ),
+    ],
+    thinkingSteps: [
+      createThinkingStep("comparison", `Locking in ${selectedNames} for detailed due diligence...`),
+      createThinkingStep("infoRequest", "Drafting interest mails for shortlisted companies..."),
+    ],
+    uiHints: {
+      showInfoRequest: true,
+      emailDrafts: selectedCompanies.map((id) => ({
+        companyId: id,
+        companyName: state.shortlist.find((c) => c.id === id)?.name || id,
+      })),
+    },
+  };
+}
+
+export function processInfoRequestConfirm(sessionId: string): NextResponse {
+  const state = getOrCreateSession(sessionId);
+  
+  const selectedNames = state.chosenCompanyIds
+    .map((id) => state.shortlist.find((c) => c.id === id)?.name)
+    .filter(Boolean)
+    .join(" and ");
+  
   state.phase = "dueDiligence";
   updateSession(sessionId, state);
 
@@ -365,7 +407,9 @@ export function processMultiCompanySelection(sessionId: string, selectedCompanie
       ),
     ],
     thinkingSteps: [
-      createThinkingStep("comparison", `Locking in ${selectedNames} for detailed due diligence...`),
+      createThinkingStep("infoRequest", "Sending interest mails to shortlisted companies..."),
+      createThinkingStep("infoRequest", "Receiving required documentation and data packs..."),
+      createThinkingStep("infoRequest", "Validating completeness of received information for due diligence..."),
       createThinkingStep("dueDiligence", "Pulling detailed financial data from Capital IQ and Refinitiv..."),
       createThinkingStep("dueDiligence", "Analyzing competitive positioning from CB Insights and Crunchbase..."),
       createThinkingStep("dueDiligence", "Compiling exit comparables from Pitchbook transaction database..."),
@@ -373,7 +417,7 @@ export function processMultiCompanySelection(sessionId: string, selectedCompanie
       createThinkingStep("dueDiligence", "Reports generated. Presenting tabbed view to analyst."),
     ],
     uiHints: {
-      showReportsForCompanyIds: selectedCompanies,
+      showReportsForCompanyIds: state.chosenCompanyIds,
     },
   };
 }
@@ -407,7 +451,7 @@ export function processMessage(
   sessionId: string,
   userMessage?: string,
   formData?: {
-    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred";
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred" | "confirmEmails";
     data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string } | { selectedCompanies: string[] };
   }
 ): NextResponse {
@@ -433,6 +477,8 @@ export function processMessage(
         return processMultiCompanySelection(sessionId, (formData.data as { selectedCompanies: string[] }).selectedCompanies);
       case "selectPreferred":
         return processSelectPreferred(sessionId, (formData.data as { companyId: string }).companyId);
+      case "confirmEmails":
+        return processInfoRequestConfirm(sessionId);
     }
   }
 

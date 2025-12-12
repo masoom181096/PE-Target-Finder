@@ -466,7 +466,7 @@ export interface NextRequest {
   sessionId: string;
   userMessage?: string;
   formData?: {
-    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred";
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred" | "confirmEmails";
     data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { subParamInputs: SubParameterUserInput[] } | { companyId: string } | { selectedCompanies: string[] };
   };
 }
@@ -480,6 +480,8 @@ export interface NextResponse {
     showRecommendations?: boolean;
     showReportForCompanyId?: string;
     showReportsForCompanyIds?: string[];
+    showInfoRequest?: boolean;
+    emailDrafts?: { companyId: string; companyName: string }[];
   };
 }
 
@@ -585,7 +587,7 @@ export const nextRequestSchema = z.object({
   sessionId: z.string(),
   userMessage: z.string().optional(),
   formData: z.object({
-    type: z.enum(["fundMandate", "restrictions", "weights", "thresholds", "chooseCompany", "selectCompanies", "selectPreferred"]),
+    type: z.enum(["fundMandate", "restrictions", "weights", "thresholds", "chooseCompany", "selectCompanies", "selectPreferred", "confirmEmails"]),
     data: z.any().optional(),
   }).optional(),
 });
@@ -600,6 +602,7 @@ export const phaseLabels: Record<Phase, string> = {
   thresholds: "Thresholds",
   shortlist: "Shortlist",
   comparison: "Review & Select",
+  infoRequest: "Info Request",
   dueDiligence: "Due Diligence",
   reportChosen: "Report",
   taskCompleted: "Completed",
@@ -615,6 +618,7 @@ export const phaseOrder: Phase[] = [
   "thresholds",
   "shortlist",
   "comparison",
+  "infoRequest",
   "dueDiligence",
   "reportChosen",
   "taskCompleted",
