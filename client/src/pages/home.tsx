@@ -436,7 +436,7 @@ export default function Home() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-foreground">PE Target Finder</h1>
-            <p className="text-xs text-muted-foreground hidden sm:block">AI-Powered Deal Sourcing</p>
+            <p className="text-xs text-muted-foreground hidden sm:block">AI-Powered PE Fund Creation</p>
           </div>
         </div>
 
@@ -459,11 +459,9 @@ export default function Home() {
           <ThemeToggle />
         </div>
       </header>
-
       <div className="md:hidden px-4 py-2 border-b border-border bg-muted/30">
         <PhaseProgressHorizontal currentPhase={currentPhase} />
       </div>
-
       <div className="flex-1 flex overflow-hidden">
         <aside className="hidden lg:flex w-72 flex-col border-r border-border bg-muted/30 p-4">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
