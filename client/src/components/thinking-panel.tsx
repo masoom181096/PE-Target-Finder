@@ -126,7 +126,7 @@ export function ThinkingPanel({ steps, isProcessing = false, className, onStream
 
         return displayed;
       });
-    }, 50); // Slower speed: 50ms per character
+    }, 20); // Fast speed: 20ms per character
 
     return () => clearInterval(interval);
   }, [isStreaming, thinkingQueue.length]);
