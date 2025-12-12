@@ -14,6 +14,7 @@ import { RecommendationsTable } from "@/components/recommendations-table";
 import { CompanyComparison } from "@/components/company-comparison";
 import { ReportView } from "@/components/report-view";
 import { DueDiligenceReports } from "@/components/due-diligence-reports";
+import { TaskCompleted } from "@/components/task-completed";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SessionManager } from "@/components/session-manager";
 import { Button } from "@/components/ui/button";
@@ -232,6 +233,17 @@ export default function Home() {
     });
   };
 
+  const handleSelectPreferred = (companyId: string) => {
+    const company = state.shortlist.find((c) => c.id === companyId);
+    const message = `Selected ${company?.name} as preferred investment target`;
+    setMessages((prev) => [...prev, { role: "user", text: message }]);
+    chatMutation.mutate({
+      sessionId,
+      userMessage: message,
+      formData: { type: "selectPreferred", data: { companyId } },
+    });
+  };
+
   const handleNewSession = () => {
     localStorage.removeItem("pe-finder-session");
     window.location.reload();
@@ -372,6 +384,19 @@ export default function Home() {
               reportTemplate={reportTemplate}
               onTemplateChange={handleTemplateChange}
               thresholds={state.thresholds}
+              onSelectPreferred={handleSelectPreferred}
+              preferredCompanyId={state.finalSelectedCompanyId}
+            />
+          </div>
+        );
+      case "taskCompleted":
+        const selectedCompany = state.shortlist.find((c) => c.id === state.finalSelectedCompanyId);
+        return (
+          <div className="py-4">
+            <TaskCompleted
+              companyName={selectedCompany?.name || "Selected Company"}
+              companyId={state.finalSelectedCompanyId || ""}
+              onStartNew={handleNewSession}
             />
           </div>
         );

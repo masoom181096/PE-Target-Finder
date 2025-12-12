@@ -430,7 +430,7 @@ export interface NextRequest {
   sessionId: string;
   userMessage?: string;
   formData?: {
-    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies";
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred";
     data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string } | { selectedCompanies: string[] };
   };
 }
@@ -549,7 +549,7 @@ export const nextRequestSchema = z.object({
   sessionId: z.string(),
   userMessage: z.string().optional(),
   formData: z.object({
-    type: z.enum(["fundMandate", "restrictions", "weights", "thresholds", "chooseCompany", "selectCompanies"]),
+    type: z.enum(["fundMandate", "restrictions", "weights", "thresholds", "chooseCompany", "selectCompanies", "selectPreferred"]),
     data: z.any().optional(),
   }).optional(),
 });

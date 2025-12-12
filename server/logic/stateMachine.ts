@@ -358,11 +358,36 @@ export function processMultiCompanySelection(sessionId: string, selectedCompanie
   };
 }
 
+export function processSelectPreferred(sessionId: string, companyId: string): NextResponse {
+  const state = getOrCreateSession(sessionId);
+  const company = state.shortlist.find((c) => c.id === companyId);
+  
+  state.finalSelectedCompanyId = companyId;
+  state.phase = "taskCompleted";
+  updateSession(sessionId, state);
+
+  return {
+    state,
+    assistantMessages: [
+      createAssistantMessage(
+        `Excellent decision! You have selected **${company?.name}** as your preferred investment target.\n\nThe investment memo has been finalized and is ready for your investment committee review. Here's a summary of next steps:\n\n1. Present findings to your investment committee\n2. Schedule preliminary discussions with ${company?.name} management\n3. Engage external advisors for detailed due diligence\n4. Prepare indicative offer and term sheet\n\nCongratulations on completing the screening process!`
+      ),
+    ],
+    thinkingSteps: [
+      createThinkingStep("dueDiligence", `Analyst selected ${company?.name} as the preferred investment target.`),
+      createThinkingStep("dueDiligence", "Finalizing investment memo and recommendation package..."),
+      createThinkingStep("taskCompleted", "Recording final selection in screening session..."),
+      createThinkingStep("taskCompleted", "Preparing next steps summary for investment committee..."),
+      createThinkingStep("taskCompleted", "Screening process completed successfully."),
+    ],
+  };
+}
+
 export function processMessage(
   sessionId: string,
   userMessage?: string,
   formData?: {
-    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies";
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred";
     data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { companyId: string } | { selectedCompanies: string[] };
   }
 ): NextResponse {
@@ -386,6 +411,8 @@ export function processMessage(
         return processCompanyChoice(sessionId, (formData.data as { companyId: string }).companyId);
       case "selectCompanies":
         return processMultiCompanySelection(sessionId, (formData.data as { selectedCompanies: string[] }).selectedCompanies);
+      case "selectPreferred":
+        return processSelectPreferred(sessionId, (formData.data as { companyId: string }).companyId);
     }
   }
 
