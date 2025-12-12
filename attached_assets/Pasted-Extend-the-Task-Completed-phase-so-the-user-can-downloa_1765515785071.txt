@@ -1,0 +1,131 @@
+Extend the Task Completed phase so the user can download the finalised company’s report.
+ 
+========================================
+BACKEND – DOWNLOAD ENDPOINT
+========================================
+ 
+1. Add an endpoint to the backend API, e.g.:
+ 
+   GET /api/report/download?sessionId=...&companyId=...
+ 
+   Behaviour:
+ 
+   - Look up the ConversationState by sessionId.
+   - Resolve the companyId:
+       - If query.companyId is present, use that.
+       - Else, if state.finalSelectedCompanyId exists, use that.
+       - If neither is available, return 400.
+ 
+   - Generate a single-file report for that company using the same
+     CompanyReport structure you show in the UI (including the riskAssessment
+     section and the full risk calculation table).
+ 
+   For the MVP, implement this as a simple text/markdown or HTML file:
+ 
+     - Build a string that contains:
+       - Header (company, sector, HQ, sources, date)
+       - Executive Summary
+       - Country Analysis
+       - Company Financial & Operational sections
+       - Exit Feasibility
+       - Contract Risk Assessment:
+           - bucket totals
+           - overall risk score, %
+           - grade
+           - MAX_TOTAL = 72, and the formula (score / 72 * 100)
+ 
+   - Return it with appropriate headers e.g.:
+ 
+       res.setHeader("Content-Type", "text/plain");
+       res.setHeader(
+         "Content-Disposition",
+         `attachment; filename="${companyName.replace(/\s+/g, "_")}_PE_Report.txt"`
+       );
+ 
+       res.send(reportString);
+ 
+   You can later swap this out for PDF/docx generation (pdfkit, puppeteer, etc.),
+   but keep it simple for now.
+ 
+========================================
+FRONTEND – TASK COMPLETED VIEW
+========================================
+ 
+2. In the TaskCompleted component (phase === "taskCompleted"):
+ 
+   - You already show:
+       - final selected company name
+       - summary of comparison
+       - "Start a new search" etc. (from previous spec).
+ 
+   - Add a primary button:
+ 
+       "Download final report"
+ 
+   - On click, call the new backend endpoint:
+ 
+       GET /api/report/download?sessionId=<currentSessionId>
+ 
+     (No need to send companyId if finalSelectedCompanyId is in state.)
+ 
+   - Implement the download using the browser fetch + blob pattern:
+ 
+       fetch(`/api/report/download?sessionId=${sessionId}`)
+         .then(res => res.blob())
+         .then(blob => {
+           const url = window.URL.createObjectURL(blob);
+           const a = document.createElement("a");
+           a.href = url;
+           a.download = "<fallback_filename>.txt"; // backend will also set filename
+           document.body.appendChild(a);
+           a.click();
+           a.remove();
+           window.URL.revokeObjectURL(url);
+         });
+ 
+   - The button should only be enabled if `finalSelectedCompanyId` exists in the
+     conversation state. If for some reason it doesn't, show a small message:
+       "Select a preferred company in the due diligence view to enable report download."
+ 
+========================================
+REPORT CONTENT REQUIREMENTS
+========================================
+ 
+3. Ensure the downloaded report text includes the full content that the analyst
+   just saw in-app for the final company, in the following order:
+ 
+   - Title: "[CompanyName] – PE Investment Diligence Report"
+   - Date
+   - Sector, Headquarters
+   - Source databases (Pitchbook, Crunchbase, Refinitiv, Capital IQ, CB Insights)
+   - Executive Summary (bulleted)
+   - Country Analysis (short narrative + key points)
+   - Company Profile & Financial Analysis (summary of tables)
+   - Operational Strength & Value Creation
+   - Exit Feasibility & Valuation Upside
+   - Contract Risk Assessment:
+       - For each bucket:
+           - bucket label, weight %, bucket score / bucket max
+       - Total risk score:
+           - "Total risk = X / 72 ≈ Y% => Grade: Low/Medium/High"
+           - One line explaining key risk drivers.
+ 
+   This is a linearised version of what is already rendered in the React report view.
+ 
+========================================
+WIRES TO TASK COMPLETED STATE
+========================================
+ 
+4. Confirm the flow:
+ 
+   - User shortlists 2+ companies.
+   - Due Diligence phase generates reports & risk scores.
+   - User clicks "Select {Company} as preferred target" ⇒ backend sets:
+       state.finalSelectedCompanyId = that companyId
+       state.phase = "taskCompleted"
+   - Task Completed screen shows:
+       - the chosen company
+       - "Download final report" button that calls /api/report/download
+       - optional "Start new search" / "Back to comparison" actions.
+ 
+Implement this download capability now.

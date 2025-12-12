@@ -23,6 +23,10 @@ export function getOrCreateSession(sessionId: string): ConversationState {
   return sessions.get(sessionId)!;
 }
 
+export function getSession(sessionId: string): ConversationState | null {
+  return sessions.get(sessionId) ?? null;
+}
+
 export function updateSession(sessionId: string, state: ConversationState): void {
   sessions.set(sessionId, state);
 }
