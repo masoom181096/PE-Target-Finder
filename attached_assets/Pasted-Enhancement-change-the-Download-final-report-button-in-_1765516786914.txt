@@ -1,0 +1,78 @@
+Enhancement: change the "Download final report" button in the Task Completed phase so it generates a **PDF** from the on-screen report (including charts), instead of calling the backend .txt download.
+ 
+Do this entirely on the frontend using `html2canvas` + `jspdf`.
+ 
+================================
+1. Dependencies
+================================
+Install:
+ 
+  npm install html2canvas jspdf
+ 
+================================
+2. Mark the report DOM
+================================
+In the component that renders the FINAL selected company's report (the full report with charts, risk table, etc.):
+ 
+- Wrap the whole report area in a div with a stable ID:
+ 
+  <div id="report-pdf-root">
+    { /* existing report layout, including charts */ }
+</div>
+ 
+Do NOT change the layout; just add the wrapper.
+ 
+================================
+3. Replace current download logic
+================================
+In the TaskCompleted view:
+ 
+- Remove / disable the existing code that does `fetch("/api/report/download")` and saves a .txt.
+ 
+- Implement a new `handleDownloadPdf` function:
+ 
+  import jsPDF from "jspdf";
+  import html2canvas from "html2canvas";
+ 
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById("report-pdf-root");
+    if (!element) return;
+ 
+    const canvas = await html2canvas(element, {
+      scale: 2,          // better quality
+      useCORS: true,
+    });
+ 
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("p", "mm", "a4");
+ 
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+ 
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+ 
+    // Single-page MVP: scale to fit page width, shrink vertically if needed
+    const finalHeight = Math.min(imgHeight, pageHeight);
+ 
+    pdf.addImage(imgData, "PNG", 0, 0, imgWidth, finalHeight);
+    pdf.save("PE_Report.pdf");
+  };
+ 
+- Wire the Task Completed button:
+ 
+  <button onClick={handleDownloadPdf}>
+    Download final report (PDF)
+</button>
+ 
+================================
+4. Behaviour expectations
+================================
+- The PDF MUST look like a screenshot of the on-screen report, including:
+  - all charts (whatever chart lib we already use),
+  - tables,
+  - risk calculation section.
+ 
+- It is acceptable if the whole report is scaled to fit a single A4 page for this MVP.
+ 
+- No backend change is required; keep the backend report generator if needed for later, but the UI should now use only `handleDownloadPdf` for the "Download final report" action.

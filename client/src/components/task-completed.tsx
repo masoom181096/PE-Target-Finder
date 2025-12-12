@@ -1,46 +1,110 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, RotateCcw, FileText, ArrowRight, Download, Loader2 } from "lucide-react";
+import { ReportView, TemplatedReportData } from "@/components/report-view";
+import { useToast } from "@/hooks/use-toast";
+import type { ReportTemplate, Thresholds } from "@shared/schema";
+import { defaultThresholds } from "@shared/schema";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 interface TaskCompletedProps {
   companyName: string;
   companyId: string;
   sessionId: string;
+  thresholds?: Thresholds;
   onStartNew?: () => void;
 }
 
-export function TaskCompleted({ companyName, companyId, sessionId, onStartNew }: TaskCompletedProps) {
+export function TaskCompleted({ companyName, companyId, sessionId, thresholds = defaultThresholds, onStartNew }: TaskCompletedProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [report, setReport] = useState<TemplatedReportData | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate>("growth");
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const { toast } = useToast();
 
-  const handleDownloadReport = async () => {
-    if (!companyId) return;
-    
+  useEffect(() => {
+    if (companyId) {
+      fetchReport(selectedTemplate);
+    }
+  }, [companyId, selectedTemplate]);
+
+  const fetchReport = async (template: ReportTemplate) => {
+    setIsLoadingReport(true);
+    try {
+      const response = await fetch(`/api/report/${companyId}?templateType=${template}`);
+      if (!response.ok) throw new Error("Failed to fetch report");
+      const data = await response.json();
+      const reportData: TemplatedReportData = {
+        ...data,
+        emphasisItems: new Map(Object.entries(data.emphasisItems || {})),
+      };
+      setReport(reportData);
+    } catch (error) {
+      console.error("Error fetching report:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load report data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingReport(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById("report-pdf-root");
+    if (!element) {
+      toast({
+        title: "Error",
+        description: "Report not found for PDF generation",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsDownloading(true);
     try {
-      const response = await fetch(`/api/report/download?sessionId=${sessionId}&companyId=${companyId}`);
-      
-      if (!response.ok) {
-        throw new Error("Failed to download report");
-      }
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+      });
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${companyName.replace(/\s+/g, "_")}_PE_Report.txt`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      const finalHeight = Math.min(imgHeight, pageHeight);
+
+      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, finalHeight);
+      pdf.save(`${companyName.replace(/\s+/g, "_")}_PE_Report.pdf`);
+
+      toast({
+        title: "Success",
+        description: "PDF report downloaded successfully",
+      });
     } catch (error) {
-      console.error("Download error:", error);
+      console.error("PDF generation error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF",
+        variant: "destructive",
+      });
     } finally {
       setIsDownloading(false);
     }
   };
+
   return (
-    <div className="w-full max-w-2xl mx-auto py-8" data-testid="task-completed">
+    <div className="w-full py-8" data-testid="task-completed">
       <div className="flex flex-col items-center text-center mb-8">
         <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-6">
           <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
@@ -53,7 +117,7 @@ export function TaskCompleted({ companyName, companyId, sessionId, onStartNew }:
         </p>
       </div>
 
-      <Card className="mb-6">
+      <Card className="mb-6 max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileText className="h-5 w-5 text-primary" />
@@ -93,22 +157,22 @@ export function TaskCompleted({ companyName, companyId, sessionId, onStartNew }:
         </CardContent>
       </Card>
 
-      <div className="flex flex-col gap-4 items-center">
+      <div className="flex flex-col gap-4 items-center mb-8">
         {companyId ? (
           <Button
-            onClick={handleDownloadReport}
-            disabled={isDownloading}
+            onClick={handleDownloadPdf}
+            disabled={isDownloading || isLoadingReport || !report}
             data-testid="button-download-report"
           >
             {isDownloading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Downloading...
+                Generating PDF...
               </>
             ) : (
               <>
                 <Download className="mr-2 h-4 w-4" />
-                Download Final Report
+                Download Final Report (PDF)
               </>
             )}
           </Button>
@@ -129,6 +193,25 @@ export function TaskCompleted({ companyName, companyId, sessionId, onStartNew }:
           </Button>
         )}
       </div>
+
+      {report && (
+        <div id="report-pdf-root" className="bg-white dark:bg-background">
+          <ReportView
+            report={report}
+            selectedTemplate={selectedTemplate}
+            onTemplateChange={setSelectedTemplate}
+            companyId={companyId}
+            thresholds={thresholds}
+            embedded={true}
+          />
+        </div>
+      )}
+
+      {isLoadingReport && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      )}
     </div>
   );
 }
