@@ -1,0 +1,89 @@
+Issue: Agent Thinking step numbers restart from 1 after every user input.
+I want the thinking steps to be numbered continuously across the session,
+so they start from the current step and continue from there (Step 4, 5, 6, ...),
+not restart at Step 1 for each response.
+ 
+DO NOT change the streaming behaviour (sequential, char-by-char, then chat+UI).
+Just fix the step numbering / ordering.
+ 
+=====================================
+1. Add a global step counter
+=====================================
+ 
+In the ThinkingPanel (or the hook managing thinkingSteps), introduce a ref:
+ 
+  const globalStepCounterRef = useRef<number>(0);
+ 
+This value should:
+ 
+- Start at 0 for a NEW session,
+- Persist across all responses in that session,
+- NOT be reset on each /api/chat/next.
+ 
+=====================================
+2. Assign displayStep numbers when new steps arrive
+=====================================
+ 
+When a new backend response comes in and we add thinkingSteps to the queue,
+instead of implicitly using local indexes (0, 1, 2) to label "Step 1", "Step 2",
+give each step its own displayStep index based on globalStepCounterRef.
+ 
+Example:
+ 
+  // when handling response.thinkingSteps:
+  const enrichedSteps = response.thinkingSteps.map(step => {
+    globalStepCounterRef.current += 1;
+    return {
+      ...step,
+      displayStep: globalStepCounterRef.current,
+    };
+  });
+ 
+  // then enqueue enrichedSteps instead of raw steps
+  setThinkingQueue(prev => [...prev, ...enrichedSteps]);
+ 
+Update the DisplayedStep type accordingly:
+ 
+  interface DisplayedStep {
+    id: string;
+    phase: string;
+    fullText: string;
+    shownText: string;
+    displayStep: number;
+  }
+ 
+When you first create a DisplayedStep from a ThinkingStep,
+copy over displayStep.
+ 
+=====================================
+3. Render using displayStep instead of local index
+=====================================
+ 
+In the UI where you currently show "Step X" or similar:
+ 
+- Use step.displayStep instead of an index based on position in the array.
+ 
+For example:
+ 
+  <div className="step-header">
+    Step {step.displayStep}
+</div>
+ 
+Do NOT reset displayStep anywhere except when a completely new session is started.
+ 
+=====================================
+4. Important: do NOT clear thinking history
+=====================================
+ 
+Make sure that when new responses arrive:
+ 
+- You append new steps to displayedSteps / thinkingQueue instead of
+  wiping older displayed steps.
+- The streaming still starts with the FIRST new step (the one just appended),
+  but its displayStep should be (previous last step number + 1).
+ 
+Result:
+ 
+- First response: Step 1, 2, 3.
+- Next response: Step 4, 5, 6.
+- And so on, across the entire process.
