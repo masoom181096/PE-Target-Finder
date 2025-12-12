@@ -1,0 +1,92 @@
+Bug: When I load a saved session that is already in the "taskCompleted" phase, the "Download final report (PDF)" button is not available. I want the button (and the PDF) to work even after a full page reload.
+ 
+Fix this as follows.
+ 
+========================
+1. Source of truth
+========================
+ 
+- Treat the backend ConversationState as the single source of truth.
+- If state.phase === "taskCompleted" AND state.finalSelectedCompanyId is set,
+  the frontend must:
+  - Rebuild the FINAL report view for that company, and
+  - Show the "Download final report (PDF)" button.
+ 
+Do NOT rely on transient local React state from the previous run.
+ 
+========================
+2. Load report on session restore
+========================
+ 
+On app startup / session restore (where you already fetch the saved state):
+ 
+- After you get ConversationState from backend:
+ 
+  if (state.phase === "taskCompleted" && state.finalSelectedCompanyId) {
+    // fetch or reconstruct the final company report
+    // use the same function / API you used in dueDiligence
+  }
+ 
+Implementation options (pick ONE, simplest):
+ 
+A) If you already have an API that returns a CompanyReport:
+ 
+   GET /api/report/final?sessionId=...
+ 
+   - Call this when the above condition is true.
+   - Store the returned CompanyReport in React state (e.g. finalReport).
+ 
+B) If CompanyReport can be recomputed purely from state on the client:
+ 
+   - Call the same utility you use in dueDiligence to build the report object
+     from state.finalSelectedCompanyId and static data.
+ 
+Either way, after this step you must have a CompanyReport object available
+in TaskCompleted view.
+ 
+========================
+3. Always render the report DOM in TaskCompleted
+========================
+ 
+In the TaskCompleted component:
+ 
+- If finalReport exists:
+  - Render the full report component (the same one used in dueDiligence)
+    INSIDE the wrapper that has id="report-pdf-root":
+ 
+      <div id="report-pdf-root">
+<ReportView report={finalReport} />
+</div>
+ 
+- Do this both:
+  - when arriving here straight from dueDiligence, and
+  - when landing here via a restored session.
+ 
+- Do NOT hide or conditionally skip this DOM on reload.
+ 
+========================
+4. PDF button visibility
+========================
+ 
+- Show the "Download final report (PDF)" button whenever:
+ 
+    state.phase === "taskCompleted"
+    AND finalSelectedCompanyId is set
+    AND finalReport is loaded (not null).
+ 
+- Keep handleDownloadPdf exactly as before, using html2canvas + jsPDF on
+  the element with id="report-pdf-root".
+ 
+- If finalReport is still loading (after a fresh reload), show a simple
+  "Loading report..." message and disable the button until the report is ready.
+ 
+========================
+5. Summary of expected behaviour
+========================
+ 
+- Finish a run → reach Task Completed → PDF button works.
+- Refresh the page, reload the same session → Task Completed screen appears
+  again with:
+  - the full report visible,
+  - the same "Download final report (PDF)" button,
+  - clicking it generates the same PDF with charts as before.

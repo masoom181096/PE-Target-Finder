@@ -317,6 +317,11 @@ export default function Home() {
       shortlist: (session.shortlist as ConversationState["shortlist"]) || [],
       chosenCompanyIds: (session.chosenCompanyIds as string[]) || (session.chosenCompanyId ? [session.chosenCompanyId] : []),
       reportTemplate: initialConversationState.reportTemplate,
+      // Restore finalSelectedCompanyId for taskCompleted phase PDF download
+      // Fall back to first chosenCompanyId if chosenCompanyId wasn't saved
+      finalSelectedCompanyId: session.chosenCompanyId || 
+        (session.chosenCompanyIds as string[] || [])[0] || 
+        undefined,
     };
     setState(loadedState);
     localStorage.setItem("pe-finder-session", session.sessionId);
