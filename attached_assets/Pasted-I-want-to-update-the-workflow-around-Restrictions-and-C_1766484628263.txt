@@ -1,0 +1,93 @@
+I want to update the workflow around Restrictions and Country Screening.
+ 
+===================================
+1) Merge steps in Workflow Progress
+===================================
+ 
+Goal: In the left “Workflow Progress” bar, replace the separate
+"Restrictions" and "Country Screening" steps with a single step:
+ 
+  "Country Screening Framework"
+ 
+Implementation:
+ 
+- In the React component that renders the workflow sidebar
+  (e.g. WorkflowProgress / SidebarSteps):
+ 
+  - Remove the separate entries for:
+      "Restrictions"
+      "Country Screening"
+ 
+  - Add ONE entry in their place:
+ 
+      id: "countryScreening"
+      label: "Country Screening Framework"
+ 
+- Ensure any highlighting / navigation logic uses this new label,
+  but keeps the same underlying phase key as the existing
+  country-screening phase (use the existing phase enum value,
+  do NOT introduce a new one if not necessary).
+ 
+- Anywhere else in the UI where "Restrictions" or "Country Screening"
+  is shown as a step heading, rename it to:
+    "Country Screening Framework".
+ 
+Backend phases (fundMandate, restrictions, countryScreening, etc.)
+can remain the same for now; this change is primarily UI/labels.
+ 
+ 
+==================================================
+2) Ask Restrictions in a pop-up after Fund Mandate
+==================================================
+ 
+Goal: When the user submits the Fund Mandate and clicks
+"Continue to Country Screening", show a **Restrictions** pop-up
+immediately. Only after the analyst fills/confirm this pop-up
+should the tool proceed to the Country Screening Framework phase.
+ 
+Implementation:
+ 
+- On the Fund Mandate screen:
+ 
+  - On click of the "Continue to Country Screening" button,
+    do NOT immediately navigate / advance phase.
+ 
+  - Instead, open a modal component (e.g. <RestrictionsModal />).
+ 
+- RestrictionsModal:
+ 
+  - Reuse the same restriction fields you currently have
+    in the Restrictions step (e.g. avoid sanctioned countries,
+    ESG constraints, sector exclusions, etc).
+  - Buttons:
+      - "Save & Continue"
+      - "Cancel" (closes modal and keeps current state; no change).
+ 
+- When the user clicks "Save & Continue" in the modal:
+ 
+  - Collect the restriction values from the modal form.
+  - Send them to the backend the same way you currently would
+    from the Restrictions step (same payload structure, same phase
+    handler – e.g. phase: "restrictions" or equivalent).
+  - After a successful response:
+      - Close the modal.
+      - Advance the wizard state to the **Country Screening Framework**
+        step (i.e. the existing countryScreening phase).
+      - Render the Country Screening Framework UI.
+ 
+- If the user presses "Cancel" in the modal:
+  - Just close the modal and remain on the Fund Mandate screen.
+  - Do NOT advance phase or send restrictions.
+ 
+- The separate full-page "Restrictions" view should no longer be
+  reachable from the sidebar (since it has been merged into
+  the Country Screening Framework step via this modal).
+ 
+Expected behaviour:
+ 
+1) Analyst fills Fund Mandate.
+2) Clicks "Continue to Country Screening".
+3) Restrictions pop-up appears, analyst enters constraints.
+4) On "Save & Continue", restrictions are saved and the tool goes
+   straight into the "Country Screening Framework" step in the
+   left workflow bar.

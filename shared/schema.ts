@@ -600,8 +600,8 @@ export const nextRequestSchema = z.object({
 export const phaseLabels: Record<Phase, string> = {
   welcome: "Welcome",
   fundMandate: "Fund Mandate",
-  restrictions: "Restrictions",
-  countryScreening: "Country Screening",
+  restrictions: "Restrictions", // Hidden from sidebar, handled via modal
+  countryScreening: "Country Screening Framework",
   weights: "Scoring Weights",
   thresholds: "Thresholds",
   shortlist: "Shortlist",
@@ -612,11 +612,10 @@ export const phaseLabels: Record<Phase, string> = {
   taskCompleted: "Completed",
 };
 
-// Phase order for progress display
+// Phase order for progress display (restrictions removed - handled via modal after fundMandate)
 export const phaseOrder: Phase[] = [
   "welcome",
   "fundMandate",
-  "restrictions",
   "countryScreening",
   "weights",
   "thresholds",
