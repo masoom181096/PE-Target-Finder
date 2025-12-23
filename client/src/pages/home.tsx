@@ -5,7 +5,7 @@ import { ChatWindow } from "@/components/chat-window";
 import { ThinkingPanel } from "@/components/thinking-panel";
 import { PhaseProgress, PhaseProgressHorizontal } from "@/components/phase-progress";
 import { FundMandateForm } from "@/components/fund-mandate-form";
-import { RestrictionsForm } from "@/components/restrictions-form";
+import { RestrictionsModal } from "@/components/restrictions-modal";
 import { WeightsForm } from "@/components/weights-form";
 import { SubParameterThresholds } from "@/components/sub-parameter-thresholds";
 import { CountryScreeningCard } from "@/components/country-screening-card";
@@ -71,6 +71,10 @@ export default function Home() {
   }>>([]);
   const [comparisonView, setComparisonView] = useState<"table" | "chart">("table");
   const [isLoadingScores, setIsLoadingScores] = useState(false);
+  
+  // Restrictions modal state
+  const [showRestrictionsModal, setShowRestrictionsModal] = useState(false);
+  const [pendingMandate, setPendingMandate] = useState<FundMandate | null>(null);
   
   // Pending assistant messages - shown only after thinking steps finish streaming
   const [pendingAssistantMessages, setPendingAssistantMessages] = useState<ChatMessage[]>([]);
@@ -189,25 +193,47 @@ export default function Home() {
   };
 
   const handleFundMandateSubmit = (data: FundMandate) => {
-    const summary = `Fund Type: ${data.fundType}, Size: ${data.fundSize}, Sectors: ${data.sectorsFocus?.join(", ")}, Geography: ${data.geosFocus?.join(", ")}, Deal Size: $${data.dealSizeMin}M-$${data.dealSizeMax}M, Stage: ${data.stage}, Holding: ${data.holdingPeriodYears} years, Risk: ${data.riskAppetite}`;
-    setMessages((prev) => [...prev, { role: "user", text: summary }]);
-    chatMutation.mutate({
-      sessionId,
-      userMessage: summary,
-      formData: { type: "fundMandate", data },
-    });
+    // Store the mandate data and open the restrictions modal
+    setPendingMandate(data);
+    setShowRestrictionsModal(true);
   };
 
-  const handleRestrictionsSubmit = (payload: RestrictionsPayload) => {
-    const summary = payload.mode === "auto" 
-      ? "Let agent assess restrictions automatically"
+  const handleRestrictionsFromModal = (payload: RestrictionsPayload) => {
+    if (!pendingMandate) return;
+    
+    // Close the modal
+    setShowRestrictionsModal(false);
+    
+    // Create summary for fund mandate
+    const mandateSummary = `Fund Type: ${pendingMandate.fundType}, Size: ${pendingMandate.fundSize}, Sectors: ${pendingMandate.sectorsFocus?.join(", ")}, Geography: ${pendingMandate.geosFocus?.join(", ")}, Deal Size: $${pendingMandate.dealSizeMin}M-$${pendingMandate.dealSizeMax}M, Stage: ${pendingMandate.stage}, Holding: ${pendingMandate.holdingPeriodYears} years, Risk: ${pendingMandate.riskAppetite}`;
+    
+    const restrictionsSummary = payload.mode === "auto" 
+      ? "Restrictions: Agent will assess automatically"
       : `Restrictions: ${payload.notes || "None specified"}`;
-    setMessages((prev) => [...prev, { role: "user", text: summary }]);
+    
+    // Add user message combining mandate and restrictions
+    setMessages((prev) => [...prev, { role: "user", text: `${mandateSummary}\n${restrictionsSummary}` }]);
+    
+    // Submit both mandate and restrictions together
     chatMutation.mutate({
       sessionId,
-      userMessage: summary,
-      formData: { type: "restrictions", data: payload },
+      userMessage: mandateSummary,
+      formData: { 
+        type: "fundMandateWithRestrictions", 
+        data: { 
+          mandate: pendingMandate, 
+          restrictions: payload 
+        } 
+      },
     });
+    
+    // Clear pending mandate
+    setPendingMandate(null);
+  };
+
+  const handleRestrictionsModalClose = () => {
+    setShowRestrictionsModal(false);
+    // Keep pendingMandate in case user wants to try again
   };
 
   const handleContinueToWeights = () => {
@@ -317,8 +343,7 @@ export default function Home() {
       shortlist: (session.shortlist as ConversationState["shortlist"]) || [],
       chosenCompanyIds: (session.chosenCompanyIds as string[]) || (session.chosenCompanyId ? [session.chosenCompanyId] : []),
       reportTemplate: initialConversationState.reportTemplate,
-      // Restore finalSelectedCompanyId for taskCompleted phase PDF download
-      // Fall back to first chosenCompanyId if chosenCompanyId wasn't saved
+      thinkingStepCounter: initialConversationState.thinkingStepCounter,
       finalSelectedCompanyId: session.chosenCompanyId || 
         (session.chosenCompanyIds as string[] || [])[0] || 
         undefined,
@@ -338,7 +363,7 @@ export default function Home() {
     if (savedThinkingSteps.length > 0) {
       setThinkingSteps(savedThinkingSteps);
     } else {
-      setThinkingSteps([{ id: crypto.randomUUID(), phase: loadedState.phase, text: `Restored session: ${session.name}` }]);
+      setThinkingSteps([{ id: crypto.randomUUID(), phase: loadedState.phase, text: `Restored session: ${session.name}`, stepNumber: 1 }]);
     }
   };
 
@@ -539,23 +564,16 @@ export default function Home() {
             <ChatWindow
               messages={messages}
               isProcessing={isProcessing}
-              inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening" && currentPhase !== "restrictions"}
+              inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening"}
               inputPlaceholder={
                 currentPhase === "countryScreening"
                   ? "Type 'continue' to proceed..."
-                  : currentPhase === "restrictions"
-                  ? "Or type your restrictions here..."
                   : "Type a message..."
               }
               onSendMessage={
-                currentPhase === "welcome" || currentPhase === "countryScreening" || currentPhase === "restrictions"
+                currentPhase === "welcome" || currentPhase === "countryScreening"
                   ? handleSendMessage
                   : undefined
-              }
-              aboveInputPanel={
-                currentPhase === "restrictions" ? (
-                  <RestrictionsForm onSubmit={handleRestrictionsSubmit} isLoading={isProcessing} />
-                ) : undefined
               }
               className="flex-1"
             >
@@ -583,23 +601,16 @@ export default function Home() {
                 <ChatWindow
                   messages={messages}
                   isProcessing={isProcessing}
-                  inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening" && currentPhase !== "restrictions"}
+                  inputDisabled={currentPhase !== "welcome" && currentPhase !== "countryScreening"}
                   inputPlaceholder={
                     currentPhase === "countryScreening"
                       ? "Type 'continue' to proceed..."
-                      : currentPhase === "restrictions"
-                      ? "Or type your restrictions here..."
                       : "Type a message..."
                   }
                   onSendMessage={
-                    currentPhase === "welcome" || currentPhase === "countryScreening" || currentPhase === "restrictions"
+                    currentPhase === "welcome" || currentPhase === "countryScreening"
                       ? handleSendMessage
                       : undefined
-                  }
-                  aboveInputPanel={
-                    currentPhase === "restrictions" ? (
-                      <RestrictionsForm onSubmit={handleRestrictionsSubmit} isLoading={isProcessing} />
-                    ) : undefined
                   }
                   className="h-full"
                 >
@@ -613,6 +624,13 @@ export default function Home() {
           </div>
         </main>
       </div>
+      
+      <RestrictionsModal
+        open={showRestrictionsModal}
+        onClose={handleRestrictionsModalClose}
+        onSave={handleRestrictionsFromModal}
+        isLoading={isProcessing}
+      />
     </div>
   );
 }

@@ -470,8 +470,8 @@ export interface NextRequest {
   sessionId: string;
   userMessage?: string;
   formData?: {
-    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred" | "confirmEmails";
-    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { subParamInputs: SubParameterUserInput[] } | { companyId: string } | { selectedCompanies: string[] };
+    type: "fundMandate" | "restrictions" | "weights" | "thresholds" | "chooseCompany" | "selectCompanies" | "selectPreferred" | "confirmEmails" | "fundMandateWithRestrictions";
+    data?: FundMandate | RestrictionsPayload | ScoringWeights | Thresholds | { subParamInputs: SubParameterUserInput[] } | { companyId: string } | { selectedCompanies: string[] } | { mandate: FundMandate; restrictions: RestrictionsPayload };
   };
 }
 

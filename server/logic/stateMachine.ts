@@ -120,6 +120,104 @@ export function processFundMandate(sessionId: string, mandate: FundMandate): Nex
   };
 }
 
+export function processFundMandateWithRestrictions(
+  sessionId: string, 
+  mandate: FundMandate, 
+  restrictionsPayload: RestrictionsPayload
+): NextResponse {
+  const state = getOrCreateSession(sessionId);
+  
+  // Set fund mandate
+  state.fundMandate = mandate;
+  
+  // Set restrictions
+  if (restrictionsPayload.mode === "auto") {
+    state.restrictions = { mode: "auto" };
+  } else {
+    const notes = restrictionsPayload.notes || "";
+    state.restrictions = {
+      mode: "manual",
+      notes,
+      avoidSanctionedCountries: notes.toLowerCase().includes("sanction"),
+    };
+  }
+  
+  // Go directly to country screening (skipping the separate restrictions phase)
+  state.phase = "countryScreening";
+
+  // Handle both legacy string fields and new OptionSelection fields
+  const fundTypeLabel = typeof mandate.fundType === 'string' 
+    ? mandate.fundType 
+    : getOptionLabel(mandate.fundType) || "Growth";
+  
+  const sectors = mandate.sectorsFocus?.join(", ") 
+    || mandate.sectorFocus?.map(s => getOptionLabel(s)).join(", ") 
+    || "Technology";
+  
+  const geos = mandate.geosFocus?.join(", ") 
+    || mandate.geographicFocus?.map(g => getOptionLabel(g)).join(", ") 
+    || "India, Singapore";
+  
+  const dealMin = mandate.dealSizeMin ?? mandate.dealSizeRange?.min ?? 10;
+  const dealMax = mandate.dealSizeMax ?? mandate.dealSizeRange?.max ?? 50;
+  const dealSize = `$${dealMin}M - $${dealMax}M`;
+  
+  const riskLabel = typeof mandate.riskAppetite === 'string' 
+    ? mandate.riskAppetite 
+    : getOptionLabel(mandate.riskAppetite) || "Medium";
+
+  const thinkingSteps = createThinkingSteps(state, [
+    { phase: "fundMandate", text: "Capturing core fund mandate parameters..." },
+    { phase: "fundMandate", text: `Mapping deal size ${dealSize} to fund size to estimate feasible targets...` },
+    { phase: "restrictions", text: restrictionsPayload.mode === "auto" 
+      ? "Agent assessing restrictions automatically based on fund mandate..." 
+      : "Processing manual restrictions: " + (restrictionsPayload.notes || "custom constraints defined") },
+    { phase: "countryScreening", text: "Assessing macro conditions across India, Singapore, Vietnam based on demo Refinitiv / CIQ data..." },
+    { phase: "countryScreening", text: "Comparing unit economics and growth profiles to your mandate..." },
+    { phase: "countryScreening", text: "Identifying India and Singapore as strongest fits given your ticket size and ESG preferences..." },
+    { phase: "countryScreening", text: "Querying macro indicators from Refinitiv and Capital IQ..." },
+    { phase: "countryScreening", text: "Both markets pass initial screening criteria. Ready for weights configuration..." },
+  ]);
+  
+  updateSession(sessionId, state);
+
+  return {
+    state,
+    assistantMessages: [
+      createAssistantMessage(
+        `**Fund Mandate Captured**
+- Type: ${fundTypeLabel}
+- Sectors: ${sectors}
+- Geography: ${geos}
+- Deal Size: ${dealSize}
+- Risk Appetite: ${riskLabel}
+
+**Restrictions Applied**: ${restrictionsPayload.mode === "auto" ? "Agent assessed automatically" : restrictionsPayload.notes || "Custom constraints"}
+
+**Macro Analysis**
+- India: Strong technology growth, robust GDP, favourable regulation
+- Singapore: Best for high-quality, governance-heavy deals, fastest-growing technology base
+- Vietnam: Fastest-growing technology base.
+
+These markets demonstrate strong tech demand.
+
+**Micro Analysis**
+- India & Singapore show better growth economics than Vietnam.
+
+**Mandate Compatibility Check**
+- All three markets have companies with ticket size above USD 50M.
+- ESG environment: strongest in India & Singapore.
+- Government revenue dependency risk highest in Vietnam (but controllable).
+
+Overall, macro, micro and mandate alignment is strongest in India and Singapore.
+
+Reply 'continue' to proceed to the scoring framework configuration.`
+      ),
+    ],
+    thinkingSteps,
+  };
+}
+
 export function processRestrictions(sessionId: string, payload?: RestrictionsPayload, userMessage?: string): NextResponse {
   const state = getOrCreateSession(sessionId);
   
@@ -508,6 +606,9 @@ export function processMessage(
     switch (formData.type) {
       case "fundMandate":
         return processFundMandate(sessionId, formData.data as FundMandate);
+      case "fundMandateWithRestrictions":
+        const combinedData = formData.data as { mandate: FundMandate; restrictions: RestrictionsPayload };
+        return processFundMandateWithRestrictions(sessionId, combinedData.mandate, combinedData.restrictions);
       case "restrictions":
         return processRestrictions(sessionId, formData.data as RestrictionsPayload, userMessage);
       case "weights":
