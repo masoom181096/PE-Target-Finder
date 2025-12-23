@@ -33,6 +33,7 @@ import type {
   SavedSession,
   ReportTemplate,
   RestrictionsPayload,
+  Restrictions,
   SubParameterUserInput,
 } from "@shared/schema";
 import { initialConversationState, phaseLabels, defaultThresholds } from "@shared/schema";
@@ -332,10 +333,17 @@ export default function Home() {
   };
 
   const handleLoadSession = (session: SavedSession) => {
+    const savedThinkingSteps = (session.thinkingSteps as ThinkingStep[]) || [];
+    
+    // Calculate the next step number from saved thinking steps
+    const maxStepNumber = savedThinkingSteps.length > 0 
+      ? Math.max(...savedThinkingSteps.map(s => s.stepNumber || 0))
+      : 0;
+    
     const loadedState: ConversationState = {
       phase: session.phase as ConversationState["phase"],
       fundMandate: (session.fundMandate as FundMandate) || {},
-      restrictions: initialConversationState.restrictions,
+      restrictions: (session.restrictions as Restrictions) || initialConversationState.restrictions,
       scoringWeights: (session.scoringWeights as ScoringWeights) || initialConversationState.scoringWeights,
       thresholds: (session.thresholds as Thresholds) || initialConversationState.thresholds,
       subParamInputs: initialConversationState.subParamInputs,
@@ -343,7 +351,7 @@ export default function Home() {
       shortlist: (session.shortlist as ConversationState["shortlist"]) || [],
       chosenCompanyIds: (session.chosenCompanyIds as string[]) || (session.chosenCompanyId ? [session.chosenCompanyId] : []),
       reportTemplate: initialConversationState.reportTemplate,
-      thinkingStepCounter: initialConversationState.thinkingStepCounter,
+      thinkingStepCounter: maxStepNumber, // Continue from last saved step number
       finalSelectedCompanyId: session.chosenCompanyId || 
         (session.chosenCompanyIds as string[] || [])[0] || 
         undefined,
@@ -352,7 +360,6 @@ export default function Home() {
     localStorage.setItem("pe-finder-session", session.sessionId);
     
     const savedMessages = (session.messages as ChatMessage[]) || [];
-    const savedThinkingSteps = (session.thinkingSteps as ThinkingStep[]) || [];
     
     if (savedMessages.length > 0) {
       setMessages(savedMessages);
@@ -363,7 +370,7 @@ export default function Home() {
     if (savedThinkingSteps.length > 0) {
       setThinkingSteps(savedThinkingSteps);
     } else {
-      setThinkingSteps([{ id: crypto.randomUUID(), phase: loadedState.phase, text: `Restored session: ${session.name}`, stepNumber: 1 }]);
+      setThinkingSteps([{ id: crypto.randomUUID(), phase: loadedState.phase, text: `Restored session: ${session.name}`, stepNumber: maxStepNumber + 1 }]);
     }
   };
 
